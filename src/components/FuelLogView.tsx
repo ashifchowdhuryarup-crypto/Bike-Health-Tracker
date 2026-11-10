@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FuelEntry, Bike, Language, NumberFormatType, FuelPriceSettings } from '../types';
 import { translations, formatNumber, formatCurrency, formatDate } from '../utils/i18n';
+import { ConfirmDialog } from './ConfirmDialog';
 import {
   Fuel,
   Plus,
@@ -44,6 +45,7 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [entryToDelete, setEntryToDelete] = useState<FuelEntry | null>(null);
 
   // Form State
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -566,11 +568,7 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
                     </button>
 
                     <button
-                      onClick={() => {
-                        if (window.confirm(t.deleteConfirm)) {
-                          onDeleteFuelEntry(entry.id);
-                        }
-                      }}
+                      onClick={() => setEntryToDelete(entry)}
                       className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
                       aria-label={t.delete}
                       title={t.delete}
@@ -584,6 +582,29 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
           })}
         </div>
       )}
+
+      {/* In-App Delete Confirmation Modal */}
+      <ConfirmDialog
+        isOpen={!!entryToDelete}
+        onClose={() => setEntryToDelete(null)}
+        onConfirm={() => {
+          if (entryToDelete) {
+            onDeleteFuelEntry(entryToDelete.id);
+            setEntryToDelete(null);
+          }
+        }}
+        title={language === 'bn' ? 'ফুয়েল এন্ট্রি মুছুন' : 'Delete Fuel Entry'}
+        message={
+          entryToDelete
+            ? language === 'bn'
+              ? `${formatNumber(entryToDelete.odometer, language, numberFormat)} কিমি এর ফুয়েল এন্ট্রিটি কি মুছে ফেলতে চান?`
+              : `Are you sure you want to delete the fuel entry at ${entryToDelete.odometer} km?`
+            : ''
+        }
+        confirmText={translations[language].delete}
+        cancelText={translations[language].cancel}
+        isDestructive={true}
+      />
     </div>
   );
 };

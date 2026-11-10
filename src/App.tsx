@@ -295,11 +295,30 @@ export default function App() {
       saveServiceItems(updatedServices);
     }
 
-    // 3. Clear prior fuel entries for this bike if requested
+    // 3. Clear prior fuel and service logs for this bike if requested
     if (clearPriorFuel) {
       const remainingFuel = fuelEntries.filter((f) => f.bikeId !== activeBike.id);
       saveFuelEntries(remainingFuel);
+      const remainingLogs = serviceLogs.filter((s) => s.bikeId !== activeBike.id);
+      saveServiceLogs(remainingLogs);
     }
+  };
+
+  // --- Handlers: Service Baseline Sync ---
+  const handleSyncServiceBaseline = (targetOdo: number) => {
+    if (!activeBike) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const updatedServices = serviceItems.map((item) => {
+      if (item.bikeId === activeBike.id) {
+        return {
+          ...item,
+          lastServiceKm: targetOdo,
+          lastServiceDate: todayStr,
+        };
+      }
+      return item;
+    });
+    saveServiceItems(updatedServices);
   };
 
   // --- Handlers: Fuel Log Management with Validation ---
@@ -517,6 +536,7 @@ export default function App() {
                 setIsMarkServiceModalOpen(true);
               }}
               onOpenResetOdo={() => setIsResetOdoModalOpen(true)}
+              onSyncServiceBaseline={handleSyncServiceBaseline}
               onNavigateToTab={setCurrentTab}
               language={language}
               numberFormat={numberFormat}
@@ -557,6 +577,7 @@ export default function App() {
                 setIsAddEditServiceModalOpen(true);
               }}
               onDeleteServiceItem={handleDeleteServiceItem}
+              onSyncServiceBaseline={handleSyncServiceBaseline}
               language={language}
               numberFormat={numberFormat}
             />

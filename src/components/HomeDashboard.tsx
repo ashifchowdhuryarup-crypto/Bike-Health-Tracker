@@ -25,6 +25,7 @@ interface HomeDashboardProps {
   onOpenAddFuel: () => void;
   onOpenMarkService: (serviceItemId?: string) => void;
   onOpenResetOdo?: () => void;
+  onSyncServiceBaseline?: (targetOdo: number) => void;
   onNavigateToTab: (tab: 'fuel' | 'service' | 'reports') => void;
   language: Language;
   numberFormat: NumberFormatType;
@@ -39,6 +40,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   onOpenAddFuel,
   onOpenMarkService,
   onOpenResetOdo,
+  onSyncServiceBaseline,
   onNavigateToTab,
   language,
   numberFormat,
@@ -222,6 +224,25 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             <ArrowRight className="w-3 h-3" />
           </button>
         </div>
+
+        {urgentServices.some((u) => u.item.lastServiceKm === 0 && u.isOverdue) && currentOdo > 500 && onSyncServiceBaseline && (
+          <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2">
+              <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <p className="text-xs text-amber-900 dark:text-amber-200 leading-snug">
+                {language === 'bn'
+                  ? `সার্ভিস পূর্বের ০ কিমিতে সেট আছে। বর্তমান ${formatNumber(currentOdo, language, numberFormat)} কিমি থেকে শুরু করতে চান?`
+                  : `Service baseline is at 0 km. Sync from current ${formatNumber(currentOdo, language, numberFormat)} km?`}
+              </p>
+            </div>
+            <button
+              onClick={() => onSyncServiceBaseline(currentOdo)}
+              className="shrink-0 px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs shadow-sm transition"
+            >
+              {language === 'bn' ? 'সিঙ্ক' : 'Sync'}
+            </button>
+          </div>
+        )}
 
         {topReminders.length === 0 ? (
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 text-center">

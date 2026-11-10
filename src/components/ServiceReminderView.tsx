@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ServiceItem, ServiceLog, ServiceUrgency, Language, NumberFormatType, Bike } from '../types';
 import { translations, formatNumber, formatCurrency, formatDate } from '../utils/i18n';
+import { ConfirmDialog } from './ConfirmDialog';
 import {
   Wrench,
   Plus,
@@ -12,6 +13,7 @@ import {
   History,
   Calendar,
   Check,
+  RotateCcw,
 } from 'lucide-react';
 
 interface ServiceReminderViewProps {
@@ -23,6 +25,7 @@ interface ServiceReminderViewProps {
   onOpenAddCustomService: () => void;
   onOpenEditService: (item: ServiceItem) => void;
   onDeleteServiceItem: (itemId: string) => void;
+  onSyncServiceBaseline?: (targetOdo: number) => void;
   language: Language;
   numberFormat: NumberFormatType;
 }
@@ -36,11 +39,16 @@ export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
   onOpenAddCustomService,
   onOpenEditService,
   onDeleteServiceItem,
+  onSyncServiceBaseline,
   language,
   numberFormat,
 }) => {
   const t = translations[language];
   const [activeSubTab, setActiveSubTab] = useState<'reminders' | 'history'>('reminders');
+  const [itemToDelete, setItemToDelete] = useState<ServiceItem | null>(null);
+
+  // Highest recorded odometer for this bike
+  const currentOdo = Math.max(bike.currentOdometer, bike.initialOdometer);
 
   return (
     <div className="space-y-4 pb-20 pt-2 animate-fadeIn">
@@ -101,6 +109,30 @@ export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
       {activeSubTab === 'reminders' ? (
         /* Service Reminders List */
         <div className="space-y-3">
+          {serviceItems.some((s) => s.lastServiceKm === 0) && currentOdo > 500 && onSyncServiceBaseline && (
+            <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 flex items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <RotateCcw className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                    {language === 'bn' ? 'সার্ভিস বেসলাইন সিঙ্ক' : 'Sync Service Baseline'}
+                  </p>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5 leading-snug">
+                    {language === 'bn'
+                      ? `সার্ভিস পূর্বের ০ কিমিতে সেট আছে। বর্তমান ${formatNumber(currentOdo, language, numberFormat)} কিমি থেকে শুরু করতে চাইলে সিঙ্ক করুন।`
+                      : `Service baseline is at 0 km. Sync from current ${formatNumber(currentOdo, language, numberFormat)} km?`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => onSyncServiceBaseline(currentOdo)}
+                className="shrink-0 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs shadow-sm transition"
+              >
+                {language === 'bn' ? 'সিঙ্ক করুন' : 'Sync All'}
+              </button>
+            </div>
+          )}
+
           {serviceUrgentList.map((urgency) => {
             const item = urgency.item;
             const itemName = language === 'bn' ? item.nameBn : item.nameEn;
@@ -210,11 +242,7 @@ export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
                     </button>
 
                     <button
-                      onClick={() => {
-                        if (window.confirm(t.deleteConfirm)) {
-                          onDeleteServiceItem(item.id);
-                        }
-                      }}
+                      onClick={() => setItemToDelete(item)}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
                       aria-label={t.delete}
                       title={t.delete}
@@ -283,6 +311,29 @@ export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
           )}
         </div>
       )}
+
+      {/* In-App Delete Service Item Confirmation */}
+      <ConfirmDialog
+        isOpen={!!itemToDelete}
+        onClose={() => setItemToDelete(null)}
+        onConfirm={() => {
+          if (itemToDelete) {
+            onDeleteServiceItem(itemToDelete.id);
+            setItemToDelete(null);
+          }
+        }}
+        title={language === 'bn' ? 'সার্ভিস আইটেম মুছুন' : 'Delete Service Item'}
+        message={
+          itemToDelete
+            ? language === 'bn'
+              ? `"${itemToDelete.nameBn || itemToDelete.nameEn}" সার্ভিস আইটেমটি কি তালিকা থেকে মুছে ফেলতে চান?`
+              : `Are you sure you want to delete "${itemToDelete.nameEn}" from your service reminders?`
+            : ''
+        }
+        confirmText={translations[language].delete}
+        cancelText={translations[language].cancel}
+        isDestructive={true}
+      />
     </div>
   );
 };

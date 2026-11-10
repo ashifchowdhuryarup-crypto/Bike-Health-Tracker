@@ -5,6 +5,7 @@ import {
   calculateServiceUrgency,
   checkMileageDropAlert,
   calculateMonthlyReports,
+  calculateLifetimeStats,
 } from './calculations';
 import { FuelEntry, ServiceItem, Bike, ServiceLog } from '../types';
 
@@ -191,4 +192,39 @@ test('calculateMonthlyReports aggregates month totals and cost per km', () => {
   assert.equal(oct.totalKm, 800); // 10800 - 10000 baseline
   assert.equal(oct.avgMileage, 40.0); // 800 / 20 = 40
   assert.equal(oct.costPerKm, 4.06); // 3250 / 800 = 4.0625 rounded to 4.06
+});
+
+test('calculateMonthlyReports accurately computes Gixxer user scenario (8850 to 8995 km)', () => {
+  const bike: Bike = {
+    id: 'b_gixxer',
+    name: 'Gixxer monoton',
+    model: '155cc',
+    initialOdometer: 0,
+    currentOdometer: 8995,
+    createdAt: '2026-11-01',
+    odometerResetAt: '2026-11-10T12:00:00Z',
+  };
+
+  const fuelEntries: FuelEntry[] = [
+    { id: 'f1', bikeId: 'b_gixxer', date: '2026-11-01', odometer: 8850, litres: 9.09, totalPrice: 1500, isFullTank: false },
+    { id: 'f2', bikeId: 'b_gixxer', date: '2026-11-10', odometer: 8995, litres: 3.0, totalPrice: 495, isFullTank: false },
+  ];
+
+  const reports = calculateMonthlyReports(fuelEntries, [], bike);
+  assert.equal(reports.length, 1);
+  const nov = reports[0];
+
+  assert.equal(nov.monthKey, '2026-11');
+  assert.equal(nov.fuelCost, 1995, 'All fuel entries in November must be summed (1500 + 495 = 1995)');
+  assert.equal(nov.totalLitres, 12.09, 'Total litres must sum both fills (9.09 + 3.0 = 12.09)');
+  assert.equal(nov.totalKm, 145, 'Distance between 8850 and 8995 must be 145 km, never 8995 km');
+  assert.equal(nov.avgMileage, 48.3, '145 km / 3.0 L = 48.3 km/L (realistic motorcycle mileage)');
+  assert.equal(nov.costPerKm, 3.41, '495 BDT / 145 km = 3.41 BDT/km');
+
+  const lifetime = calculateLifetimeStats(bike, fuelEntries, []);
+  assert.equal(lifetime.totalDistance, 145);
+  assert.equal(lifetime.totalFuelCost, 1995);
+  assert.equal(lifetime.totalLitres, 12.09);
+  assert.equal(lifetime.avgMileage, 48.3);
+  assert.equal(lifetime.costPerKm, 3.41);
 });

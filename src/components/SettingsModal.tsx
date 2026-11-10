@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Bike, Language, NumberFormatType, FuelPriceSettings } from '../types';
 import { translations } from '../utils/i18n';
+import { ConfirmDialog } from './ConfirmDialog';
 import {
   Settings,
   X,
@@ -75,6 +76,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    isDestructive?: boolean;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Fuel Prices State
   const [octanePriceInput, setOctanePriceInput] = useState<string>((fuelPrices?.octane || 165).toString());
@@ -386,11 +396,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     {bikes.length > 1 && b.id !== activeBike?.id && (
                       <button
                         onClick={() => {
-                          if (window.confirm(language === 'bn' ? 'এই বাইকটি কি মুছে ফেলতে চান?' : 'Delete this bike?')) {
-                            onDeleteBike(b.id);
-                          }
+                          setConfirmDialog({
+                            isOpen: true,
+                            title: language === 'bn' ? 'বাইক মুছুন' : 'Delete Bike',
+                            message:
+                              language === 'bn'
+                                ? `"${b.name}" বাইকটি কি মুছে ফেলতে চান?`
+                                : `Are you sure you want to delete "${b.name}"?`,
+                            confirmText: t.delete,
+                            isDestructive: true,
+                            onConfirm: () => onDeleteBike(b.id),
+                          });
                         }}
                         className="p-1 text-slate-400 hover:text-red-500"
+                        title={t.delete}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -615,10 +634,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => {
-                  if (window.confirm(language === 'bn' ? 'ডেমো ডেটা লোড করতে চান?' : 'Load demo data?')) {
-                    onLoadDemoData();
-                    setStatusMessage({ type: 'success', text: t.demoLoadedMsg });
-                  }
+                  setConfirmDialog({
+                    isOpen: true,
+                    title: language === 'bn' ? 'ডেমো ডেটা লোড' : 'Load Demo Data',
+                    message:
+                      language === 'bn'
+                        ? 'আপনি কি ডেমো রেকর্ডগুলো লোড করতে চান?'
+                        : 'Do you want to load sample demo records?',
+                    confirmText: language === 'bn' ? 'লোড করুন' : 'Load Data',
+                    isDestructive: false,
+                    onConfirm: () => {
+                      onLoadDemoData();
+                      setStatusMessage({ type: 'success', text: t.demoLoadedMsg });
+                    },
+                  });
                 }}
                 className="flex items-center justify-center gap-1.5 p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition"
               >
@@ -641,10 +670,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* Clear All Data */}
             <button
               onClick={() => {
-                if (window.confirm(t.resetConfirm)) {
-                  onClearAllData();
-                  setStatusMessage({ type: 'success', text: language === 'bn' ? 'সব ডেটা সফলভাবে মুছে ফেলা হয়েছে' : 'All data cleared' });
-                }
+                setConfirmDialog({
+                  isOpen: true,
+                  title: language === 'bn' ? 'সব ডেটা মুছে নতুন করে শুরু' : 'Clear All Data & Fresh Start',
+                  message:
+                    language === 'bn'
+                      ? 'আপনি কি নিশ্চিত? সব বাইক, ওডোমিটার, ফুয়েল লগ ও সার্ভিসের তথ্য মুছে যাবে এবং আপনি একদম নতুন করে শুরু করতে পারবেন!'
+                      : 'Are you sure? All bikes, odometer, fuel logs, and service records will be permanently wiped so you can start 100% fresh!',
+                  confirmText: language === 'bn' ? 'হ্যাঁ, সব মুছে ফ্রেশ শুরু করুন' : 'Yes, Wipe Everything',
+                  isDestructive: true,
+                  onConfirm: () => {
+                    onClearAllData();
+                    onClose();
+                  },
+                });
               }}
               className="w-full flex items-center justify-center gap-2 p-3 rounded-2xl bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-700 dark:text-red-300 text-xs font-bold transition"
             >
@@ -654,6 +693,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* In-App Confirmation Dialog */}
+      {confirmDialog && (
+        <ConfirmDialog
+          isOpen={confirmDialog.isOpen}
+          onClose={() => setConfirmDialog(null)}
+          onConfirm={confirmDialog.onConfirm}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmText={confirmDialog.confirmText}
+          cancelText={translations[language].cancel}
+          isDestructive={confirmDialog.isDestructive ?? true}
+        />
+      )}
     </div>
   );
 };

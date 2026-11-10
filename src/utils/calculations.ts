@@ -219,7 +219,7 @@ export function calculateMonthlyReports(
   serviceLogs: ServiceLog[],
   bike: Bike
 ): MonthlyReport[] {
-  // Group fuel entries by YYYY-MM
+  // Group fuel entries and service logs by YYYY-MM
   const monthMap = new Map<
     string,
     {
@@ -260,36 +260,60 @@ export function calculateMonthlyReports(
     const year = parseInt(yearStr, 10);
 
     const data = monthMap.get(monthKey)!;
-    const fuels = data.fuelEntries;
+    const fuels = [...data.fuelEntries].sort((a, b) => {
+      if (a.odometer !== b.odometer) return a.odometer - b.odometer;
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
     const services = data.serviceLogs;
 
     const fuelCost = fuels.reduce((acc, f) => acc + (f.totalPrice || 0), 0);
     const totalLitres = Math.round(fuels.reduce((acc, f) => acc + (f.litres || 0), 0) * 100) / 100;
     const serviceCost = services.reduce((acc, s) => acc + (s.cost || 0), 0);
+    const totalCost = fuelCost + serviceCost;
 
-    // Calculate km in this month:
-    // Distance can be accurately computed by looking at the fuel entries of this month
-    // plus distance relative to the entry immediately preceding this month.
     let totalKm = 0;
+    let avgMileage = 0;
+    let costPerKm = 0;
+
     if (fuels.length > 0) {
       const monthMinOdo = Math.min(...fuels.map((f) => f.odometer));
       const monthMaxOdo = Math.max(...fuels.map((f) => f.odometer));
 
       // Look for the last entry prior to this month to get start baseline
       const priorEntries = allChronological.filter((f) => f.date < `${monthKey}-01`);
+
       if (priorEntries.length > 0) {
+        // Standard scenario: distance from end of previous month's reading to this month's maximum reading
         const lastPriorOdo = priorEntries[priorEntries.length - 1].odometer;
         totalKm = Math.max(0, monthMaxOdo - lastPriorOdo);
+        avgMileage = totalLitres > 0 && totalKm > 0 ? Math.round((totalKm / totalLitres) * 10) / 10 : 0;
+        costPerKm = totalKm > 0 ? Math.round((totalCost / totalKm) * 100) / 100 : 0;
+      } else if (
+        bike.initialOdometer > 0 &&
+        monthMinOdo >= bike.initialOdometer &&
+        monthMinOdo - bike.initialOdometer <= 1000
+      ) {
+        // Earliest month, starting from bike's known initial odometer
+        totalKm = Math.max(0, monthMaxOdo - bike.initialOdometer);
+        avgMileage = totalLitres > 0 && totalKm > 0 ? Math.round((totalKm / totalLitres) * 10) / 10 : 0;
+        costPerKm = totalKm > 0 ? Math.round((totalCost / totalKm) * 100) / 100 : 0;
+      } else if (fuels.length > 1) {
+        // Earliest month with multiple entries (e.g. 8,850 km and 8,995 km):
+        // Distance traveled between the entries is monthMaxOdo - monthMinOdo
+        totalKm = Math.max(0, monthMaxOdo - monthMinOdo);
+        // The fuel consumed to travel this distance is the fuel added after the initial fill
+        const consumedLitres = fuels.filter((f) => f.odometer > monthMinOdo).reduce((acc, f) => acc + (f.litres || 0), 0);
+        const consumedFuelCost = fuels.filter((f) => f.odometer > monthMinOdo).reduce((acc, f) => acc + (f.totalPrice || 0), 0);
+
+        avgMileage = consumedLitres > 0 && totalKm > 0 ? Math.round((totalKm / consumedLitres) * 10) / 10 : 0;
+        costPerKm = totalKm > 0 ? Math.round(((consumedFuelCost + serviceCost) / totalKm) * 100) / 100 : 0;
       } else {
-        // If this is the earliest month recorded, distance from bike initialOdometer or min-to-max
-        const baseline = Math.min(bike.initialOdometer, monthMinOdo);
-        totalKm = Math.max(0, monthMaxOdo - baseline);
+        // Single entry in the earliest month with no prior baseline: distance cannot be measured yet
+        totalKm = 0;
+        avgMileage = 0;
+        costPerKm = 0;
       }
     }
-
-    const avgMileage = totalLitres > 0 && totalKm > 0 ? Math.round((totalKm / totalLitres) * 10) / 10 : 0;
-    const totalCost = fuelCost + serviceCost;
-    const costPerKm = totalKm > 0 ? Math.round((totalCost / totalKm) * 100) / 100 : 0;
 
     reports.push({
       monthKey,
@@ -316,9 +340,10 @@ export function calculateLifetimeStats(
   fuelEntries: FuelEntry[],
   serviceLogs: ServiceLog[]
 ) {
+  const totalServiceCost = serviceLogs.reduce((sum, s) => sum + (s.cost || 0), 0);
+
   // If no fuel entries exist, tracked distance is 0
   if (!fuelEntries || fuelEntries.length === 0) {
-    const totalServiceCost = serviceLogs.reduce((sum, s) => sum + (s.cost || 0), 0);
     return {
       currentOdo: bike.currentOdometer,
       totalDistance: 0,
@@ -331,37 +356,61 @@ export function calculateLifetimeStats(
     };
   }
 
-  const relevantFuels = bike.odometerResetAt
-    ? fuelEntries.filter((f) => f.date >= bike.odometerResetAt!.split('T')[0])
-    : fuelEntries;
-
   const currentOdo = Math.max(
     bike.currentOdometer,
-    ...relevantFuels.map((f) => f.odometer),
+    ...fuelEntries.map((f) => f.odometer),
     bike.initialOdometer
   );
 
-  let totalDistance = 0;
-  if (relevantFuels.length > 0) {
-    const minOdo = Math.min(...relevantFuels.map((f) => f.odometer));
-    const maxOdo = Math.max(...relevantFuels.map((f) => f.odometer));
-    const baseline = Math.min(bike.initialOdometer, minOdo);
-    totalDistance = Math.max(0, maxOdo - baseline);
-  }
-
-  const totalFuelCost = relevantFuels.reduce((sum, f) => sum + (f.totalPrice || 0), 0);
-  const totalLitres = relevantFuels.reduce((sum, f) => sum + (f.litres || 0), 0);
-  const totalServiceCost = serviceLogs.reduce((sum, s) => sum + (s.cost || 0), 0);
+  const totalFuelCost = fuelEntries.reduce((sum, f) => sum + (f.totalPrice || 0), 0);
+  const totalLitres = Math.round(fuelEntries.reduce((sum, f) => sum + (f.litres || 0), 0) * 100) / 100;
   const totalCost = totalFuelCost + totalServiceCost;
 
-  const avgMileage = totalLitres > 0 && totalDistance > 0 ? Math.round((totalDistance / totalLitres) * 10) / 10 : 0;
-  const costPerKm = totalDistance > 0 ? Math.round((totalCost / totalDistance) * 100) / 100 : 0;
+  let totalDistance = 0;
+  let avgMileage = 0;
+  let costPerKm = 0;
+
+  if (fuelEntries.length > 1) {
+    const minOdo = Math.min(...fuelEntries.map((f) => f.odometer));
+    const maxOdo = Math.max(...fuelEntries.map((f) => f.odometer));
+
+    if (
+      bike.initialOdometer > 0 &&
+      bike.initialOdometer < minOdo &&
+      minOdo - bike.initialOdometer <= 1000
+    ) {
+      totalDistance = maxOdo - bike.initialOdometer;
+      avgMileage = totalLitres > 0 && totalDistance > 0 ? Math.round((totalDistance / totalLitres) * 10) / 10 : 0;
+      costPerKm = totalDistance > 0 ? Math.round((totalCost / totalDistance) * 100) / 100 : 0;
+    } else {
+      totalDistance = Math.max(0, maxOdo - minOdo);
+      const consumedLitres = fuelEntries.filter((f) => f.odometer > minOdo).reduce((sum, f) => sum + (f.litres || 0), 0);
+      const consumedFuelCost = fuelEntries.filter((f) => f.odometer > minOdo).reduce((sum, f) => sum + (f.totalPrice || 0), 0);
+
+      avgMileage = consumedLitres > 0 && totalDistance > 0 ? Math.round((totalDistance / consumedLitres) * 10) / 10 : 0;
+      costPerKm = totalDistance > 0 ? Math.round(((consumedFuelCost + totalServiceCost) / totalDistance) * 100) / 100 : 0;
+    }
+  } else if (fuelEntries.length === 1) {
+    if (
+      bike.initialOdometer > 0 &&
+      bike.initialOdometer < fuelEntries[0].odometer &&
+      fuelEntries[0].odometer - bike.initialOdometer <= 1000
+    ) {
+      totalDistance = fuelEntries[0].odometer - bike.initialOdometer;
+      avgMileage = totalLitres > 0 && totalDistance > 0 ? Math.round((totalDistance / totalLitres) * 10) / 10 : 0;
+      costPerKm = totalDistance > 0 ? Math.round((totalCost / totalDistance) * 100) / 100 : 0;
+    } else {
+      totalDistance = 0;
+      avgMileage = 0;
+      costPerKm = 0;
+    }
+  }
 
   return {
     currentOdo,
     totalDistance,
     totalFuelCost,
-    totalLitres: Math.round(totalLitres * 10) / 10,
+    totalLitres,
     totalServiceCost,
     totalCost,
     avgMileage,

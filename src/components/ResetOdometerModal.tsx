@@ -56,6 +56,10 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
   const handleQuickSet = (val: number) => {
     setNewOdoInput(val.toString());
     setError(null);
+    if (val === 0) {
+      setClearPriorFuel(true);
+      setAdjustServices(true);
+    }
   };
 
   const handleAddKm = (increment: number) => {
@@ -213,19 +217,25 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
             </label>
 
             {/* Option 2: Clear Prior Fuel Logs */}
-            <label className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 cursor-pointer">
+            <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition ${
+              clearPriorFuel
+                ? 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40'
+                : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
+            }`}>
               <input
                 type="checkbox"
                 checked={clearPriorFuel}
                 onChange={(e) => setClearPriorFuel(e.target.checked)}
-                className="mt-0.5 rounded text-amber-600 focus:ring-amber-500 w-4 h-4 border-slate-300 dark:border-slate-600"
+                className="mt-0.5 rounded text-rose-600 focus:ring-rose-500 w-4 h-4 border-slate-300 dark:border-slate-600"
               />
               <div>
-                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 block">
-                  {t.clearPriorFuelLogs}
+                <span className={`text-xs font-semibold block ${clearPriorFuel ? 'text-rose-900 dark:text-rose-200' : 'text-slate-800 dark:text-slate-200'}`}>
+                  {language === 'bn' ? 'পূর্বের সব ফুয়েল ও সার্ভিস রেকর্ড মুছে দিন (ফ্রেশ ০ কিমি শুরু)' : 'Clear previous fuel & service records (Fresh 0 km start)'}
                 </span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5 leading-relaxed">
-                  {t.clearPriorFuelLogsHelp}
+                <span className={`text-[11px] block mt-0.5 leading-relaxed ${clearPriorFuel ? 'text-rose-700 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                  {language === 'bn'
+                    ? 'এটি সক্রিয় রাখলে পুরনো সব ফুয়েল ও সার্ভিস রেকর্ড মুছে যাবে, ফলে রিপোর্টের মোট দূরত্ব (Total Distance) ০ কিমি হয়ে একদম নতুনভাবে শুরু হবে।'
+                    : 'Check this to wipe all old records so the report total distance becomes 0 km and starts 100% fresh.'}
                 </span>
               </div>
             </label>
