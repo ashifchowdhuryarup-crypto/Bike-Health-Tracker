@@ -21,6 +21,7 @@ import {
   Edit2,
   Fuel,
   RotateCcw,
+  Gauge,
 } from 'lucide-react';
 import { usePWAInstall } from '../utils/usePWAInstall';
 
@@ -313,11 +314,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       onClose();
                       onOpenResetOdo();
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-xs font-semibold transition"
-                    title={t.resetOdometer}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition"
+                    title={language === 'bn' ? 'ওডোমিটার পরিবর্তন / আপডেট' : 'Update Odometer'}
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>{t.resetOdometerShort}</span>
+                    <Gauge className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>{language === 'bn' ? 'ওডো পরিবর্তন' : 'Update Odo'}</span>
                   </button>
                 )}
               </div>

@@ -181,15 +181,11 @@ export default function App() {
     return serviceLogs.filter((s) => s.bikeId === activeBike.id);
   }, [serviceLogs, activeBike]);
 
-  // Current calculated odometer (highest odometer in system)
+  // Current calculated odometer
   const currentOdo = useMemo(() => {
     if (!activeBike) return 0;
-    return Math.max(
-      activeBike.currentOdometer,
-      ...activeFuelEntries.map((f) => f.odometer),
-      activeBike.initialOdometer
-    );
-  }, [activeBike, activeFuelEntries]);
+    return activeBike.currentOdometer;
+  }, [activeBike]);
 
   // Fuel mileage calculations
   const calculatedMileages = useMemo(() => {
@@ -265,23 +261,25 @@ export default function App() {
   // --- Handlers: Odometer Reset / Calibration ---
   const handleResetOdometer = (
     newOdometer: number,
-    adjustServices: boolean = true,
+    serviceMode: 'keep' | 'shift' | 'resetAll' = 'keep',
     clearPriorFuel: boolean = false
   ) => {
     if (!activeBike) return;
 
+    const oldOdo = activeBike.currentOdometer;
+    const diff = newOdometer - oldOdo;
     const nowIso = new Date().toISOString();
     const todayStr = nowIso.split('T')[0];
 
     // 1. Update bike odometer
     handleUpdateBike(activeBike.id, {
       currentOdometer: newOdometer,
-      initialOdometer: newOdometer,
-      odometerResetAt: nowIso,
+      initialOdometer: activeBike.initialOdometer > 0 ? activeBike.initialOdometer : newOdometer,
     });
 
-    // 2. Adjust active services baseline if requested
-    if (adjustServices) {
+    // 2. Adjust active services baseline according to selected mode
+    if (serviceMode === 'resetAll') {
+      // Forcibly reset all service items' last service to the new odometer
       const updatedServices = serviceItems.map((item) => {
         if (item.bikeId === activeBike.id) {
           return {
@@ -293,9 +291,23 @@ export default function App() {
         return item;
       });
       saveServiceItems(updatedServices);
+    } else if (serviceMode === 'shift' && diff !== 0) {
+      // Shift service records by the exact odometer difference
+      const updatedServices = serviceItems.map((item) => {
+        if (item.bikeId === activeBike.id) {
+          return {
+            ...item,
+            lastServiceKm: Math.max(0, item.lastServiceKm + diff),
+          };
+        }
+        return item;
+      });
+      saveServiceItems(updatedServices);
     }
+    // If serviceMode === 'keep': service items retain their recorded lastServiceKm,
+    // and all countdowns (remaining km, due status) immediately calculate against the new odometer!
 
-    // 3. Clear prior fuel and service logs for this bike if requested
+    // 3. Clear prior fuel and service logs ONLY if user explicitly checked full wipe
     if (clearPriorFuel) {
       const remainingFuel = fuelEntries.filter((f) => f.bikeId !== activeBike.id);
       saveFuelEntries(remainingFuel);

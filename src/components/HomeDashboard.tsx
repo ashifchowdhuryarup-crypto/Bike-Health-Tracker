@@ -48,12 +48,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 }) => {
   const t = translations[language];
 
-  // Current odometer is the highest recorded odometer
-  const currentOdo = Math.max(
-    bike.currentOdometer,
-    ...fuelEntries.map((f) => f.odometer),
-    bike.initialOdometer
-  );
+  // Current odometer is the bike's current odometer reading
+  const currentOdo = bike.currentOdometer;
 
   // Take top 3 most urgent services
   const topReminders = urgentServices.slice(0, 3);
@@ -109,11 +105,11 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           {onOpenResetOdo && (
             <button
               onClick={onOpenResetOdo}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-semibold text-amber-300 hover:text-amber-200 border border-amber-400/20 hover:border-amber-400/40 transition shadow-sm backdrop-blur-md"
-              title={t.resetOdometer}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-semibold text-emerald-300 hover:text-emerald-200 border border-emerald-400/20 hover:border-emerald-400/40 transition shadow-sm backdrop-blur-md"
+              title={language === 'bn' ? 'ওডোমিটার পরিবর্তন / আপডেট' : 'Update Odometer'}
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>{t.resetOdometerShort}</span>
+              <Gauge className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{language === 'bn' ? 'ওডো পরিবর্তন' : 'Update Odo'}</span>
             </button>
           )}
         </div>
