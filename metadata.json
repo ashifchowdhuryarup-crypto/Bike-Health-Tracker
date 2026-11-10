@@ -1,0 +1,7 @@
+{
+  "name": "Bike Tracker",
+  "description": "Mobile-first fuel mileage and service reminder tracker for motorcycle owners in Bangladesh with Bangla & English support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
