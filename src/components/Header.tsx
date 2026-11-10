@@ -40,8 +40,8 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-2 text-left p-1 -ml-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-95"
             aria-label={t.switchBike}
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
-              <BikeIcon className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 p-1 flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
+              <img src="/logo.png" alt="Bike Tracker" className="w-full h-full object-contain dark:invert transition-all" />
             </div>
             <div>
               <div className="flex items-center gap-1">

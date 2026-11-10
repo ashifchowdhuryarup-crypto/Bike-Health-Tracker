@@ -55,8 +55,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6">
         {/* Language switch at top right */}
         <div className="flex items-center justify-between mb-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
-            <BikeIcon className="w-6 h-6" />
+          <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 p-2 flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-md">
+            <img src="/logo.png" alt="Bike Tracker" className="w-full h-full object-contain dark:invert" />
           </div>
 
           <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1">

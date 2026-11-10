@@ -15,6 +15,7 @@ import {
   CheckSquare,
   RotateCcw,
 } from 'lucide-react';
+import { PWAInstallBanner } from './PWAInstallBanner';
 
 interface HomeDashboardProps {
   bike: Bike;
@@ -64,6 +65,9 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 
   return (
     <div className="space-y-4 pb-20 pt-2 animate-fadeIn">
+      {/* PWA Phone Install Prompt Banner */}
+      <PWAInstallBanner language={language} />
+
       {/* Hero Odometer Card */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white p-5 shadow-xl border border-slate-700/50">
         {/* Decorative background glow */}

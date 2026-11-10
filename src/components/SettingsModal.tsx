@@ -22,6 +22,7 @@ import {
   Fuel,
   RotateCcw,
 } from 'lucide-react';
+import { usePWAInstall } from '../utils/usePWAInstall';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -85,6 +86,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     isDestructive?: boolean;
     onConfirm: () => void;
   } | null>(null);
+
+  // PWA Install State
+  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
+  const [showPWAHelp, setShowPWAHelp] = useState(false);
 
   // Fuel Prices State
   const [octanePriceInput, setOctanePriceInput] = useState<string>((fuelPrices?.octane || 165).toString());
@@ -170,13 +175,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-5 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300">
-              <Settings className="w-4 h-4" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 p-1 flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
+              <img src="/logo.png" alt="Bike Tracker" className="w-full h-full object-contain dark:invert" />
             </div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              {t.settingsTitle}
-            </h2>
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                {t.settingsTitle}
+              </h2>
+              <span className="text-[11px] text-slate-400">Bike Tracker v1.2</span>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -528,6 +536,63 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span>{darkMode ? t.darkMode : t.lightMode}</span>
               </button>
             </div>
+
+            {/* PWA Phone Install Option */}
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/10 border border-emerald-500/20">
+              <div className="flex items-center gap-2.5">
+                <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <div>
+                  <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                    {language === 'bn' ? 'ফোনে ইনস্টল' : 'Install on Phone'}
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {isInstalled
+                      ? (language === 'bn' ? 'অলরেডি ইনস্টল করা আছে' : 'Already installed')
+                      : (language === 'bn' ? 'হোম স্ক্রিনে সরাসরি অ্যাপের মতো রাখুন' : 'Add to mobile home screen')}
+                  </span>
+                </div>
+              </div>
+
+              {!isInstalled && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (isInstallable) {
+                      await install();
+                    } else {
+                      setShowPWAHelp(true);
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm active:scale-95 transition flex items-center gap-1"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>{language === 'bn' ? 'ইনস্টল' : 'Install'}</span>
+                </button>
+              )}
+            </div>
+
+            {/* PWA Help Guide Popup */}
+            {showPWAHelp && (
+              <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {language === 'bn' ? 'কীভাবে ফোনে ইনস্টল করবেন:' : 'How to install on mobile:'}
+                  </span>
+                  <button onClick={() => setShowPWAHelp(false)} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                  {isIOS
+                    ? (language === 'bn'
+                      ? 'iPhone / Safari-তে নিচের Share আইকনে ট্যাপ করে "Add to Home Screen" চাপুন।'
+                      : 'In Safari on iOS, tap Share and select "Add to Home Screen".')
+                    : (language === 'bn'
+                      ? 'Chrome ব্রাউজারের উপরে ৩-ডট মেনুতে ট্যাপ করে "Install app" অথবা "Add to Home screen" নির্বাচন করুন।'
+                      : 'In Chrome, tap the 3-dot menu and select "Install app" or "Add to Home screen".')}
+                </p>
+              </div>
+            )}
 
             {/* Fuel Prices Setting */}
             <div className="p-3.5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 space-y-2.5">
