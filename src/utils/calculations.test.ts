@@ -6,6 +6,8 @@ import {
   checkMileageDropAlert,
   calculateMonthlyReports,
   calculateLifetimeStats,
+  autoSyncServicesForOdometerChange,
+  isFuelEntryAfterReset,
 } from './calculations';
 import { FuelEntry, ServiceItem, Bike, ServiceLog } from '../types';
 
@@ -228,3 +230,95 @@ test('calculateMonthlyReports accurately computes Gixxer user scenario (8850 to 
   assert.equal(lifetime.avgMileage, 48.3);
   assert.equal(lifetime.costPerKm, 3.41);
 });
+
+test('autoSyncServicesForOdometerChange auto-syncs uninitialized, forward, and downward odo changes', () => {
+  const bikeAtZero: Bike = {
+    id: 'b1',
+    name: 'Gixxer',
+    model: '155cc',
+    initialOdometer: 0,
+    currentOdometer: 0,
+    createdAt: '2026-11-01',
+  };
+
+  const zeroItems: ServiceItem[] = [
+    {
+      id: 's1',
+      bikeId: 'b1',
+      nameEn: 'Engine Oil',
+      nameBn: 'ইঞ্জিন অয়েল',
+      kmInterval: 2500,
+      lastServiceKm: 0,
+      lastServiceDate: '2026-11-01',
+    },
+    {
+      id: 's2',
+      bikeId: 'b1',
+      nameEn: 'Chain Lube',
+      nameBn: 'চেইন লুব',
+      kmInterval: 600,
+      lastServiceKm: 0,
+      lastServiceDate: '2026-11-01',
+    },
+  ];
+
+  // 1. Uninitialized 0-km bike jumps to 8995 km -> auto-syncs baseline without manual prompt
+  const syncedInit = autoSyncServicesForOdometerChange(zeroItems, bikeAtZero, 0, 8995, [], '2026-11-16');
+  assert.equal(syncedInit.updatedInitialOdo, 8995);
+  assert.equal(syncedInit.updatedItems[0].lastServiceKm, 8995);
+  assert.equal(syncedInit.updatedItems[1].lastServiceKm, 8995);
+  assert.equal(calculateServiceUrgency(syncedInit.updatedItems[0], 8995).kmRemaining, 2500);
+  assert.equal(calculateServiceUrgency(syncedInit.updatedItems[1], 8995).kmRemaining, 600);
+
+  // 2. Forward odo update (8995 -> 9195) preserves lastServiceKm & auto-updates remaining km
+  const activeBike: Bike = { ...bikeAtZero, initialOdometer: 8995, currentOdometer: 8995 };
+  const syncedForward = autoSyncServicesForOdometerChange(syncedInit.updatedItems, activeBike, 8995, 9195, [], '2026-11-16');
+  assert.equal(syncedForward.updatedItems[0].lastServiceKm, 8995);
+  assert.equal(calculateServiceUrgency(syncedForward.updatedItems[0], 9195).kmRemaining, 2300);
+  assert.equal(calculateServiceUrgency(syncedForward.updatedItems[1], 9195).kmRemaining, 400);
+
+  // 3. Downward odo change below lastServiceKm (9195 -> 500) preserves used distance cleanly
+  const movedBike: Bike = { ...activeBike, currentOdometer: 9195 };
+  const syncedDown = autoSyncServicesForOdometerChange(syncedForward.updatedItems, movedBike, 9195, 500, [], '2026-11-16');
+  // Used km was 9195 - 8995 = 200 -> new lastServiceKm = 500 - 200 = 300
+  assert.equal(syncedDown.updatedItems[0].lastServiceKm, 300);
+  assert.equal(syncedDown.updatedInitialOdo, 500);
+  assert.equal(calculateServiceUrgency(syncedDown.updatedItems[0], 500).kmRemaining, 2300);
+
+  // 4. Existing bike with initialOdometer > 0 whose default items were stuck at 0 km -> auto-heals
+  const stuckBike: Bike = { ...bikeAtZero, initialOdometer: 1, currentOdometer: 8995 };
+  const stuckDefaultItems: ServiceItem[] = zeroItems.map((it) => ({ ...it, isDefault: true }));
+  const healed = autoSyncServicesForOdometerChange(stuckDefaultItems, stuckBike, 8995, 8995, [], '2026-11-16');
+  assert.equal(healed.changed, true);
+  assert.equal(healed.updatedItems[0].lastServiceKm, 8995);
+  assert.equal(healed.updatedItems[1].lastServiceKm, 8995);
+});
+
+test('isFuelEntryAfterReset accurately distinguishes same-day entries before and after reset', () => {
+  const resetAt = '2026-11-16T10:00:00.000Z';
+  const beforeReset: FuelEntry = {
+    id: 'fuel_1',
+    bikeId: 'b1',
+    date: '2026-11-16',
+    odometer: 8995,
+    litres: 3,
+    totalPrice: 495,
+    isFullTank: false,
+    createdAt: '2026-11-16T09:00:00.000Z',
+  };
+  const afterReset: FuelEntry = {
+    id: 'fuel_2',
+    bikeId: 'b1',
+    date: '2026-11-16',
+    odometer: 600,
+    litres: 3,
+    totalPrice: 495,
+    isFullTank: false,
+    createdAt: '2026-11-16T10:05:00.000Z',
+  };
+
+  assert.equal(isFuelEntryAfterReset(beforeReset, resetAt), false);
+  assert.equal(isFuelEntryAfterReset(afterReset, resetAt), true);
+});
+
+

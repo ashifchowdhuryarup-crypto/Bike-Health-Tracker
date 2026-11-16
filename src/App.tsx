@@ -26,6 +26,8 @@ import {
   calculateFuelMileages,
   calculateServiceUrgency,
   calculateMonthlyReports,
+  autoSyncServicesForOdometerChange,
+  isFuelEntryAfterReset,
 } from './utils/calculations';
 import { Header } from './components/Header';
 import { Navigation } from './components/Navigation';
@@ -77,13 +79,50 @@ export default function App() {
     }
 
     const initial = initLocalStorageIfEmpty();
-    setBikes(initial.bikes);
+    let loadedBikes = initial.bikes;
+    let loadedItems = initial.serviceItems;
+    let bikesHealed = false;
+    let itemsHealed = false;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Auto-heal any uninitialized 0-km default service records on existing bikes above 500 km
+    loadedBikes = loadedBikes.map((b) => {
+      if (b.currentOdometer > 500) {
+        const res = autoSyncServicesForOdometerChange(
+          loadedItems,
+          b,
+          b.initialOdometer === 0 ? 0 : b.currentOdometer,
+          b.currentOdometer,
+          initial.serviceLogs,
+          todayStr,
+          false
+        );
+        if (res.changed) {
+          loadedItems = res.updatedItems;
+          itemsHealed = true;
+        }
+        if (res.updatedInitialOdo !== b.initialOdometer) {
+          bikesHealed = true;
+          return { ...b, initialOdometer: res.updatedInitialOdo };
+        }
+      }
+      return b;
+    });
+
+    if (bikesHealed) {
+      localStorage.setItem(STORAGE_KEYS.BIKES, JSON.stringify(loadedBikes));
+    }
+    if (itemsHealed) {
+      localStorage.setItem(STORAGE_KEYS.SERVICE_ITEMS, JSON.stringify(loadedItems));
+    }
+
+    setBikes(loadedBikes);
     setActiveBikeId(initial.activeBikeId);
     setFuelEntries(initial.fuelEntries);
-    setServiceItems(initial.serviceItems);
+    setServiceItems(loadedItems);
     setServiceLogs(initial.serviceLogs);
 
-    if (initial.bikes.length === 0) {
+    if (loadedBikes.length === 0) {
       setIsOnboardingOpen(true);
     }
   }, []);
@@ -258,54 +297,47 @@ export default function App() {
     }
   };
 
-  // --- Handlers: Odometer Reset / Calibration ---
+  // --- Handlers: Odometer Update with Automatic Service Sync ---
   const handleResetOdometer = (
     newOdometer: number,
-    serviceMode: 'keep' | 'shift' | 'resetAll' = 'keep',
+    resetAllServices: boolean = false,
     clearPriorFuel: boolean = false
   ) => {
     if (!activeBike) return;
 
     const oldOdo = activeBike.currentOdometer;
-    const diff = newOdometer - oldOdo;
     const nowIso = new Date().toISOString();
     const todayStr = nowIso.split('T')[0];
 
-    // 1. Update bike odometer
-    handleUpdateBike(activeBike.id, {
-      currentOdometer: newOdometer,
-      initialOdometer: activeBike.initialOdometer > 0 ? activeBike.initialOdometer : newOdometer,
-    });
+    // 1. Auto-sync service items with the new odometer
+    const { updatedItems, updatedInitialOdo, changed } = autoSyncServicesForOdometerChange(
+      serviceItems,
+      activeBike,
+      oldOdo,
+      newOdometer,
+      serviceLogs,
+      todayStr,
+      resetAllServices
+    );
 
-    // 2. Adjust active services baseline according to selected mode
-    if (serviceMode === 'resetAll') {
-      // Forcibly reset all service items' last service to the new odometer
-      const updatedServices = serviceItems.map((item) => {
-        if (item.bikeId === activeBike.id) {
-          return {
-            ...item,
-            lastServiceKm: newOdometer,
-            lastServiceDate: todayStr,
-          };
-        }
-        return item;
-      });
-      saveServiceItems(updatedServices);
-    } else if (serviceMode === 'shift' && diff !== 0) {
-      // Shift service records by the exact odometer difference
-      const updatedServices = serviceItems.map((item) => {
-        if (item.bikeId === activeBike.id) {
-          return {
-            ...item,
-            lastServiceKm: Math.max(0, item.lastServiceKm + diff),
-          };
-        }
-        return item;
-      });
-      saveServiceItems(updatedServices);
+    if (changed) {
+      saveServiceItems(updatedItems);
     }
-    // If serviceMode === 'keep': service items retain their recorded lastServiceKm,
-    // and all countdowns (remaining km, due status) immediately calculate against the new odometer!
+
+    // 2. Update bike odometer (and reset marker if lowered below prior fuel entries)
+    const hasFuelAboveNewOdo = activeFuelEntries.some((f) => f.odometer > newOdometer);
+    const bikeUpdates: Partial<Bike> = {
+      currentOdometer: newOdometer,
+      initialOdometer: clearPriorFuel ? newOdometer : updatedInitialOdo,
+    };
+
+    if (clearPriorFuel) {
+      bikeUpdates.odometerResetAt = undefined;
+    } else if (newOdometer < oldOdo && hasFuelAboveNewOdo) {
+      bikeUpdates.odometerResetAt = nowIso;
+    }
+
+    handleUpdateBike(activeBike.id, bikeUpdates);
 
     // 3. Clear prior fuel and service logs ONLY if user explicitly checked full wipe
     if (clearPriorFuel) {
@@ -316,24 +348,7 @@ export default function App() {
     }
   };
 
-  // --- Handlers: Service Baseline Sync ---
-  const handleSyncServiceBaseline = (targetOdo: number) => {
-    if (!activeBike) return;
-    const todayStr = new Date().toISOString().split('T')[0];
-    const updatedServices = serviceItems.map((item) => {
-      if (item.bikeId === activeBike.id) {
-        return {
-          ...item,
-          lastServiceKm: targetOdo,
-          lastServiceDate: todayStr,
-        };
-      }
-      return item;
-    });
-    saveServiceItems(updatedServices);
-  };
-
-  // --- Handlers: Fuel Log Management with Validation ---
+  // --- Handlers: Fuel Log Management with Auto Odo & Service Sync ---
   const handleAddFuelEntry = (entry: Omit<FuelEntry, 'id'>): { success: boolean; error?: string } => {
     if (!activeBike) return { success: false, error: 'No active bike' };
 
@@ -341,12 +356,8 @@ export default function App() {
     const previousEntries = activeFuelEntries.filter((f) => {
       const isPriorOrSameDate = new Date(f.date) <= new Date(entry.date);
       if (!isPriorOrSameDate) return false;
-      // If odometer was reset, only compare with entries on or after reset date
-      if (activeBike.odometerResetAt) {
-        const resetDate = activeBike.odometerResetAt.split('T')[0];
-        return f.date >= resetDate;
-      }
-      return true;
+      // If odometer was reset, only compare with entries created on or after reset timestamp
+      return isFuelEntryAfterReset(f, activeBike.odometerResetAt);
     });
 
     if (previousEntries.length > 0) {
@@ -373,28 +384,122 @@ export default function App() {
     const newEntry: FuelEntry = {
       ...entry,
       id: `fuel_${Date.now()}`,
+      createdAt: new Date().toISOString(),
     };
 
     const updated = [newEntry, ...fuelEntries];
     saveFuelEntries(updated);
 
-    // Update active bike current odometer if new entry is higher
+    // Auto-sync bike odometer & any uninitialized 0-km services when new entry increases odometer
     if (entry.odometer > activeBike.currentOdometer) {
-      handleUpdateBike(activeBike.id, { currentOdometer: entry.odometer });
+      const todayStr = new Date().toISOString().split('T')[0];
+      const { updatedItems, updatedInitialOdo, changed } = autoSyncServicesForOdometerChange(
+        serviceItems,
+        activeBike,
+        activeBike.currentOdometer,
+        entry.odometer,
+        serviceLogs,
+        todayStr,
+        false
+      );
+      if (changed) {
+        saveServiceItems(updatedItems);
+      }
+      handleUpdateBike(activeBike.id, {
+        currentOdometer: entry.odometer,
+        initialOdometer: updatedInitialOdo,
+      });
     }
 
     return { success: true };
   };
 
   const handleUpdateFuelEntry = (id: string, updates: Partial<FuelEntry>): { success: boolean; error?: string } => {
+    const oldEntry = fuelEntries.find((f) => f.id === id);
     const updated = fuelEntries.map((f) => (f.id === id ? { ...f, ...updates } : f));
     saveFuelEntries(updated);
+
+    if (activeBike && oldEntry && oldEntry.bikeId === activeBike.id && updates.odometer !== undefined) {
+      const relevantBikeEntries = updated.filter(
+        (f) => f.bikeId === activeBike.id && isFuelEntryAfterReset(f, activeBike.odometerResetAt)
+      );
+      const maxFuelOdo =
+        relevantBikeEntries.length > 0
+          ? Math.max(...relevantBikeEntries.map((f) => f.odometer))
+          : activeBike.initialOdometer;
+
+      let targetOdo = activeBike.currentOdometer;
+      if (activeBike.currentOdometer === oldEntry.odometer) {
+        // User edited the latest entry that controlled currentOdometer -> sync both upward & downward
+        targetOdo = Math.max(maxFuelOdo, activeBike.initialOdometer);
+      } else if (updates.odometer > activeBike.currentOdometer) {
+        targetOdo = updates.odometer;
+      }
+
+      if (targetOdo !== activeBike.currentOdometer) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const { updatedItems, updatedInitialOdo, changed } = autoSyncServicesForOdometerChange(
+          serviceItems,
+          activeBike,
+          activeBike.currentOdometer,
+          targetOdo,
+          serviceLogs,
+          todayStr,
+          false
+        );
+        if (changed) {
+          saveServiceItems(updatedItems);
+        }
+        handleUpdateBike(activeBike.id, {
+          currentOdometer: targetOdo,
+          initialOdometer: updatedInitialOdo,
+        });
+      }
+    }
+
     return { success: true };
   };
 
   const handleDeleteFuelEntry = (id: string) => {
+    const deletedEntry = fuelEntries.find((f) => f.id === id);
     const updated = fuelEntries.filter((f) => f.id !== id);
     saveFuelEntries(updated);
+
+    if (
+      activeBike &&
+      deletedEntry &&
+      deletedEntry.bikeId === activeBike.id &&
+      deletedEntry.odometer === activeBike.currentOdometer
+    ) {
+      const remainingBikeFuels = updated.filter(
+        (f) => f.bikeId === activeBike.id && isFuelEntryAfterReset(f, activeBike.odometerResetAt)
+      );
+      const maxFuelOdo =
+        remainingBikeFuels.length > 0 ? Math.max(...remainingBikeFuels.map((f) => f.odometer)) : 0;
+      const maxLogOdo =
+        activeServiceLogs.length > 0 ? Math.max(...activeServiceLogs.map((l) => l.odometer)) : 0;
+      const targetOdo = Math.max(maxFuelOdo, maxLogOdo, activeBike.initialOdometer);
+
+      if (targetOdo !== activeBike.currentOdometer) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const { updatedItems, updatedInitialOdo, changed } = autoSyncServicesForOdometerChange(
+          serviceItems,
+          activeBike,
+          activeBike.currentOdometer,
+          targetOdo,
+          serviceLogs,
+          todayStr,
+          false
+        );
+        if (changed) {
+          saveServiceItems(updatedItems);
+        }
+        handleUpdateBike(activeBike.id, {
+          currentOdometer: targetOdo,
+          initialOdometer: updatedInitialOdo,
+        });
+      }
+    }
   };
 
   // --- Handlers: Service Management ---
@@ -437,10 +542,11 @@ export default function App() {
       cost: data.cost,
       notes: data.notes,
     };
-    saveServiceLogs([newLog, ...serviceLogs]);
+    const updatedLogs = [newLog, ...serviceLogs];
+    saveServiceLogs(updatedLogs);
 
     // 2. Reset the reminder on the service item
-    const updatedItems = serviceItems.map((item) => {
+    let updatedItems = serviceItems.map((item) => {
       if (item.id === data.serviceItemId) {
         return {
           ...item,
@@ -450,12 +556,26 @@ export default function App() {
       }
       return item;
     });
-    saveServiceItems(updatedItems);
 
     // 3. Update bike current odometer if service was performed at a higher odometer
     if (data.odometer > activeBike.currentOdometer) {
-      handleUpdateBike(activeBike.id, { currentOdometer: data.odometer });
+      const synced = autoSyncServicesForOdometerChange(
+        updatedItems,
+        activeBike,
+        activeBike.currentOdometer,
+        data.odometer,
+        updatedLogs,
+        data.date,
+        false
+      );
+      updatedItems = synced.updatedItems;
+      handleUpdateBike(activeBike.id, {
+        currentOdometer: data.odometer,
+        initialOdometer: synced.updatedInitialOdo,
+      });
     }
+
+    saveServiceItems(updatedItems);
   };
 
   // --- Handlers: Backup & Demo ---
@@ -516,25 +636,25 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center">
-      {/* Mobile container centered on larger displays */}
-      <div className="w-full max-w-md min-h-screen bg-white dark:bg-slate-900 shadow-2xl flex flex-col relative border-x border-slate-200/60 dark:border-slate-800">
-        {/* Sticky Header */}
-        <Header
-          bikes={bikes}
-          activeBike={activeBike}
-          onSelectBike={saveActiveBikeId}
-          onOpenAddBike={() => setIsAddBikeModalOpen(true)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          language={language}
-          onToggleLanguage={() => updateSettings({ language: language === 'bn' ? 'en' : 'bn' })}
-          numberFormat={numberFormat}
-          darkMode={darkMode}
-          onToggleDarkMode={() => updateSettings({ darkMode: !darkMode })}
-        />
+    <div className="min-h-screen bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-[#F4F6F0] flex flex-col">
+      {/* Sticky Header */}
+      <Header
+        bikes={bikes}
+        activeBike={activeBike}
+        onSelectBike={saveActiveBikeId}
+        onOpenAddBike={() => setIsSettingsOpen(true)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        language={language}
+        onToggleLanguage={() => updateSettings({ language: language === 'bn' ? 'en' : 'bn' })}
+        numberFormat={numberFormat}
+        darkMode={darkMode}
+        onToggleDarkMode={() => updateSettings({ darkMode: !darkMode })}
+      />
 
+      {/* Responsive Container: Mobile-first phone ergonomics expanding cleanly on tablet/desktop */}
+      <div className="w-full max-w-md md:max-w-3xl lg:max-w-5xl mx-auto flex-1 flex flex-col relative">
         {/* Main Content View based on Tab */}
-        <main className="flex-1 px-4 py-2 overflow-y-auto">
+        <main className="flex-1 px-4 md:px-6 pt-2 pb-24">
           {activeBike && currentTab === 'home' && (
             <HomeDashboard
               bike={activeBike}
@@ -548,7 +668,6 @@ export default function App() {
                 setIsMarkServiceModalOpen(true);
               }}
               onOpenResetOdo={() => setIsResetOdoModalOpen(true)}
-              onSyncServiceBaseline={handleSyncServiceBaseline}
               onNavigateToTab={setCurrentTab}
               language={language}
               numberFormat={numberFormat}
@@ -589,7 +708,6 @@ export default function App() {
                 setIsAddEditServiceModalOpen(true);
               }}
               onDeleteServiceItem={handleDeleteServiceItem}
-              onSyncServiceBaseline={handleSyncServiceBaseline}
               language={language}
               numberFormat={numberFormat}
             />
@@ -612,6 +730,7 @@ export default function App() {
         <Navigation
           currentTab={currentTab}
           onSelectTab={setCurrentTab}
+          onOpenAddFuel={() => setIsAddFuelModalOpen(true)}
           language={language}
           urgentServiceCount={urgentCount}
           hasOverdueService={hasOverdueService}
@@ -663,6 +782,8 @@ export default function App() {
               isOpen={isResetOdoModalOpen}
               onClose={() => setIsResetOdoModalOpen(false)}
               bike={activeBike}
+              serviceItems={activeServiceItems}
+              serviceLogs={activeServiceLogs}
               onResetOdometer={handleResetOdometer}
               language={language}
               numberFormat={numberFormat}

@@ -417,3 +417,105 @@ export function calculateLifetimeStats(
     costPerKm,
   };
 }
+
+/**
+ * Automatically synchronizes service items and initialOdometer whenever the bike's
+ * odometer changes (via Odometer Update, Fuel Add, Fuel Edit, or Fuel Delete).
+ *
+ * Rules:
+ * - If newOdo === 0: all items for this bike reset to 0 km.
+ * - If an item is uninitialized (lastServiceKm === 0 with no logged service) and the bike
+ *   moves from 0 or jumps above 500 km from initialOdometer 0: auto-syncs lastServiceKm to newOdo.
+ * - If newOdo < item.lastServiceKm (downward odometer reset/correction): adjusts lastServiceKm
+ *   to preserve prior used distance within the new odometer range (0 <= lastServiceKm <= newOdo).
+ * - Otherwise (normal forward riding or valid records): retains recorded lastServiceKm so
+ *   calculateServiceUrgency(item, newOdo) immediately reflects updated remaining km.
+ */
+export function autoSyncServicesForOdometerChange(
+  items: ServiceItem[],
+  bike: Bike,
+  oldOdo: number,
+  newOdo: number,
+  serviceLogs: ServiceLog[],
+  todayStr: string = new Date().toISOString().split('T')[0],
+  forceResetAll: boolean = false
+): { updatedItems: ServiceItem[]; updatedInitialOdo: number; changed: boolean } {
+  const isUninitializedBike = bike.initialOdometer === 0 && newOdo > 500;
+  const bikeLogs = serviceLogs.filter((l) => l.bikeId === bike.id);
+  let changed = false;
+
+  const updatedItems = items.map((item) => {
+    if (item.bikeId !== bike.id) return item;
+
+    if (forceResetAll || newOdo === 0) {
+      if (item.lastServiceKm !== newOdo || item.lastServiceDate !== todayStr) {
+        changed = true;
+        return {
+          ...item,
+          lastServiceKm: newOdo,
+          lastServiceDate: todayStr,
+        };
+      }
+      return item;
+    }
+
+    const hasItemLog = bikeLogs.some((l) => l.serviceItemId === item.id);
+
+    if (
+      item.lastServiceKm === 0 &&
+      !hasItemLog &&
+      (oldOdo === 0 || isUninitializedBike || (newOdo > 500 && item.isDefault))
+    ) {
+      changed = true;
+      return {
+        ...item,
+        lastServiceKm: newOdo,
+        lastServiceDate: todayStr,
+      };
+    }
+
+    if (item.lastServiceKm > newOdo) {
+      const usedKm = Math.max(0, oldOdo - item.lastServiceKm);
+      const adjustedLastKm = Math.max(0, newOdo - usedKm);
+      changed = true;
+      return {
+        ...item,
+        lastServiceKm: adjustedLastKm,
+      };
+    }
+
+    return item;
+  });
+
+  let updatedInitialOdo = bike.initialOdometer;
+  if (newOdo === 0) {
+    updatedInitialOdo = 0;
+  } else if (bike.initialOdometer === 0 && newOdo > 0) {
+    updatedInitialOdo = newOdo;
+  } else if (newOdo < bike.initialOdometer) {
+    updatedInitialOdo = newOdo;
+  }
+
+  return { updatedItems, updatedInitialOdo, changed };
+}
+
+/**
+ * Determines whether a fuel entry occurred on or after a bike's odometerResetAt timestamp,
+ * accurately handling same-day resets via entry.createdAt or timestamped id.
+ */
+export function isFuelEntryAfterReset(entry: FuelEntry, odometerResetAt?: string): boolean {
+  if (!odometerResetAt) return true;
+  if (entry.createdAt) {
+    return entry.createdAt >= odometerResetAt;
+  }
+  if (entry.id.startsWith('fuel_')) {
+    const ts = Number(entry.id.slice(5));
+    if (!Number.isNaN(ts) && ts > 1_000_000_000_000) {
+      return ts >= new Date(odometerResetAt).getTime();
+    }
+  }
+  const resetDate = odometerResetAt.split('T')[0];
+  return entry.date > resetDate;
+}
+
+

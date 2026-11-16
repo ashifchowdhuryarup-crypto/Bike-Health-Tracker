@@ -90,20 +90,20 @@ export const AddEditServiceModal: React.FC<AddEditServiceModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-5 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+      <div className="w-full max-w-md bg-white dark:bg-[#171C18] rounded-t-[28px] sm:rounded-[28px] border border-black/[0.06] dark:border-white/[0.08] shadow-2xl p-5 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.08]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-[#EEF9DA] dark:bg-[#1E2B14] flex items-center justify-center text-[#5C9E00] dark:text-[#A3EC38]">
               <Wrench className="w-4 h-4" />
             </div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
+            <h2 className="text-base font-extrabold text-[#141912] dark:text-white">
               {editingItem ? t.editServiceItem : t.addCustomService}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-[#6F766C] hover:text-[#141912] dark:text-slate-400 dark:hover:text-white hover:bg-[#F6F7F4] dark:hover:bg-white/10 transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -111,14 +111,14 @@ export const AddEditServiceModal: React.FC<AddEditServiceModalProps> = ({
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-3.5">
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+            <div className="p-3 rounded-2xl bg-[#FFEEEE] dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
               <span>{error}</span>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
               {t.serviceNameBn} *
             </label>
             <input
@@ -127,12 +127,12 @@ export const AddEditServiceModal: React.FC<AddEditServiceModalProps> = ({
               placeholder="যেমন: কুল্যান্ট পরিবর্তন"
               value={nameBn}
               onChange={(e) => setNameBn(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs font-medium focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
               {t.serviceNameEn}
             </label>
             <input
@@ -140,13 +140,13 @@ export const AddEditServiceModal: React.FC<AddEditServiceModalProps> = ({
               placeholder="e.g., Coolant Flush"
               value={nameEn}
               onChange={(e) => setNameEn(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs font-medium focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                 {t.kmInterval} *
               </label>
               <div className="relative">
@@ -157,16 +157,16 @@ export const AddEditServiceModal: React.FC<AddEditServiceModalProps> = ({
                   placeholder="2500"
                   value={kmInterval}
                   onChange={(e) => setKmInterval(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs font-bold tabular-nums focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
                 />
-                <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">
+                <span className="absolute right-3 top-2.5 text-xs text-[#6F766C] dark:text-slate-400 font-semibold">
                   {t.km}
                 </span>
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                 {t.dayInterval}
               </label>
               <div className="relative">
@@ -176,9 +176,9 @@ export const AddEditServiceModal: React.FC<AddEditServiceModalProps> = ({
                   placeholder="90"
                   value={dayInterval}
                   onChange={(e) => setDayInterval(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs font-bold tabular-nums focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
                 />
-                <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">
+                <span className="absolute right-3 top-2.5 text-xs text-[#6F766C] dark:text-slate-400 font-semibold">
                   {language === 'bn' ? 'দিন' : 'days'}
                 </span>
               </div>
@@ -187,7 +187,7 @@ export const AddEditServiceModal: React.FC<AddEditServiceModalProps> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                 {t.lastServiceKm} *
               </label>
               <input
@@ -196,12 +196,12 @@ export const AddEditServiceModal: React.FC<AddEditServiceModalProps> = ({
                 required
                 value={lastServiceKm}
                 onChange={(e) => setLastServiceKm(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs font-bold tabular-nums focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                 {t.lastServiceDate} *
               </label>
               <input
@@ -209,7 +209,7 @@ export const AddEditServiceModal: React.FC<AddEditServiceModalProps> = ({
                 required
                 value={lastServiceDate}
                 onChange={(e) => setLastServiceDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs font-semibold focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
               />
             </div>
           </div>
@@ -218,13 +218,13 @@ export const AddEditServiceModal: React.FC<AddEditServiceModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="px-4 py-2.5 min-h-[44px] rounded-full text-xs font-semibold text-[#6F766C] dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 transition"
             >
               {t.cancel}
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-600/25 transition"
+              className="px-6 py-2.5 min-h-[44px] rounded-full bg-[#9AE62E] hover:bg-[#8CD825] active:scale-95 text-[#141912] font-bold text-xs shadow-sm transition"
             >
               {t.saveEntry}
             </button>

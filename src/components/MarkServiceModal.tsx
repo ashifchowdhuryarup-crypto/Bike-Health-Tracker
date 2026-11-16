@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ServiceItem, Bike, Language, NumberFormatType } from '../types';
-import { translations, formatNumber } from '../utils/i18n';
-import { Wrench, X, Check, AlertCircle } from 'lucide-react';
+import { translations } from '../utils/i18n';
+import { Wrench, X, AlertCircle } from 'lucide-react';
 
 interface MarkServiceModalProps {
   isOpen: boolean;
@@ -29,7 +29,6 @@ export const MarkServiceModal: React.FC<MarkServiceModalProps> = ({
   preselectedItemId,
   onConfirmServiceDone,
   language,
-  numberFormat,
 }) => {
   const t = translations[language];
 
@@ -84,20 +83,20 @@ export const MarkServiceModal: React.FC<MarkServiceModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-5 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center text-amber-600 dark:text-amber-400">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+      <div className="w-full max-w-md bg-white dark:bg-[#171C18] rounded-t-[28px] sm:rounded-[28px] border border-black/[0.06] dark:border-white/[0.08] shadow-2xl p-5 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.08]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-[#EEF9DA] dark:bg-[#1E2B14] flex items-center justify-center text-[#5C9E00] dark:text-[#A3EC38]">
               <Wrench className="w-4 h-4" />
             </div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
+            <h2 className="text-base font-extrabold text-[#141912] dark:text-white">
               {t.markServiceDone}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-[#6F766C] hover:text-[#141912] dark:text-slate-400 dark:hover:text-white hover:bg-[#F6F7F4] dark:hover:bg-white/10 transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -105,21 +104,21 @@ export const MarkServiceModal: React.FC<MarkServiceModalProps> = ({
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-3.5">
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+            <div className="p-3 rounded-2xl bg-[#FFEEEE] dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
               <span>{error}</span>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
               {language === 'bn' ? 'কোন সার্ভিস সম্পন্ন করেছেন?' : 'Which service was completed?'} *
             </label>
             <select
               required
               value={selectedItemId}
               onChange={(e) => setSelectedItemId(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs font-semibold focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
             >
               {serviceItems.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -131,7 +130,7 @@ export const MarkServiceModal: React.FC<MarkServiceModalProps> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                 {t.date} *
               </label>
               <input
@@ -139,12 +138,12 @@ export const MarkServiceModal: React.FC<MarkServiceModalProps> = ({
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs font-semibold focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                 {t.serviceCostOptional}
               </label>
               <div className="relative">
@@ -154,9 +153,9 @@ export const MarkServiceModal: React.FC<MarkServiceModalProps> = ({
                   placeholder="1200"
                   value={cost}
                   onChange={(e) => setCost(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs font-bold tabular-nums focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
                 />
-                <span className="absolute right-3 top-2 text-xs text-slate-400 font-semibold">
+                <span className="absolute right-3 top-2.5 text-xs text-[#6F766C] dark:text-slate-400 font-semibold">
                   {t.bdt}
                 </span>
               </div>
@@ -164,7 +163,7 @@ export const MarkServiceModal: React.FC<MarkServiceModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
               {t.serviceOdometerInput} *
             </label>
             <div className="relative">
@@ -174,13 +173,13 @@ export const MarkServiceModal: React.FC<MarkServiceModalProps> = ({
                 required
                 value={odometer}
                 onChange={(e) => setOdometer(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-sm font-bold tabular-nums focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
               />
-              <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">
+              <span className="absolute right-3.5 top-2.5 text-xs text-[#6F766C] dark:text-slate-400 font-semibold">
                 {t.km}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">
+            <p className="text-[11px] text-[#6F766C] dark:text-slate-400 mt-1">
               {language === 'bn'
                 ? 'রিমাইন্ডার এই ওডোমিটার ও তারিখ থেকে নতুন করে গণনা শুরু করবে।'
                 : 'Reminder will reset and count forward from this odometer and date.'}
@@ -188,7 +187,7 @@ export const MarkServiceModal: React.FC<MarkServiceModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
               {t.notes}
             </label>
             <input
@@ -196,7 +195,7 @@ export const MarkServiceModal: React.FC<MarkServiceModalProps> = ({
               placeholder={language === 'bn' ? 'যেমন: Motul 7100 10W40 ফুল সিন্থেটিক' : 'e.g., Motul 7100 10W40 Full Synthetic'}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
             />
           </div>
 
@@ -204,13 +203,13 @@ export const MarkServiceModal: React.FC<MarkServiceModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="px-4 py-2.5 min-h-[44px] rounded-full text-xs font-semibold text-[#6F766C] dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 transition"
             >
               {t.cancel}
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-600/25 transition"
+              className="px-6 py-2.5 min-h-[44px] rounded-full bg-[#9AE62E] hover:bg-[#8CD825] active:scale-95 text-[#141912] font-bold text-xs shadow-sm transition"
             >
               {t.markDone}
             </button>

@@ -5,15 +5,12 @@ import { ConfirmDialog } from './ConfirmDialog';
 import {
   Wrench,
   Plus,
-  CheckCircle2,
   AlertTriangle,
   Clock,
   Trash2,
   Edit3,
   History,
-  Calendar,
   Check,
-  RotateCcw,
 } from 'lucide-react';
 
 interface ServiceReminderViewProps {
@@ -25,13 +22,11 @@ interface ServiceReminderViewProps {
   onOpenAddCustomService: () => void;
   onOpenEditService: (item: ServiceItem) => void;
   onDeleteServiceItem: (itemId: string) => void;
-  onSyncServiceBaseline?: (targetOdo: number) => void;
   language: Language;
   numberFormat: NumberFormatType;
 }
 
 export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
-  bike,
   serviceItems,
   serviceUrgentList,
   serviceLogs,
@@ -39,7 +34,6 @@ export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
   onOpenAddCustomService,
   onOpenEditService,
   onDeleteServiceItem,
-  onSyncServiceBaseline,
   language,
   numberFormat,
 }) => {
@@ -47,116 +41,85 @@ export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<'reminders' | 'history'>('reminders');
   const [itemToDelete, setItemToDelete] = useState<ServiceItem | null>(null);
 
-  // Highest recorded odometer for this bike
-  const currentOdo = Math.max(bike.currentOdometer, bike.initialOdometer);
-
   return (
-    <div className="space-y-4 pb-20 pt-2 animate-fadeIn">
+    <div className="space-y-4 pb-6 pt-1 animate-fadeIn">
       {/* Top Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Wrench className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            <span>{t.serviceTitle}</span>
+          <h1 className="text-xl font-extrabold text-[#141912] dark:text-white tracking-tight">
+            {t.serviceTitle}
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {formatNumber(serviceItems.length, language, numberFormat)} {language === 'bn' ? 'টি আইটেম ট্র্যাক করা হচ্ছে' : 'items tracked'}
+          <p className="text-xs font-medium text-[#6F766C] dark:text-slate-400 tabular-nums mt-0.5">
+            {formatNumber(serviceItems.length, language, numberFormat)}{' '}
+            {language === 'bn' ? 'টি আইটেম ট্র্যাক করা হচ্ছে' : 'items tracked'}
           </p>
         </div>
 
         <button
           onClick={onOpenAddCustomService}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-md shadow-emerald-600/20 active:scale-95 transition"
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-full bg-[#9AE62E] hover:bg-[#8CD825] text-[#141912] font-bold text-xs shadow-sm active:scale-95 transition shrink-0"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4 stroke-[2.5]" />
           <span>{t.addCustomService}</span>
         </button>
       </div>
 
       {/* Sub Tabs: Reminders vs History */}
-      <div className="flex rounded-2xl bg-slate-200/80 dark:bg-slate-800 p-1">
+      <div className="flex rounded-2xl bg-black/[0.04] dark:bg-white/[0.06] p-1">
         <button
           onClick={() => setActiveSubTab('reminders')}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 ${
+          className={`flex-1 min-h-[42px] py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 ${
             activeSubTab === 'reminders'
-              ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              ? 'bg-white dark:bg-[#171C18] text-[#141912] dark:text-white shadow-xs'
+              : 'text-[#6F766C] dark:text-slate-400 hover:text-[#141912] dark:hover:text-white'
           }`}
         >
           <Wrench className="w-3.5 h-3.5" />
           <span>{t.serviceReminders}</span>
-          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 font-extrabold">
-            {serviceItems.length}
-          </span>
+          <span className="tabular-nums opacity-70">({formatNumber(serviceItems.length, language, numberFormat)})</span>
         </button>
 
         <button
           onClick={() => setActiveSubTab('history')}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 ${
+          className={`flex-1 min-h-[42px] py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 ${
             activeSubTab === 'history'
-              ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              ? 'bg-white dark:bg-[#171C18] text-[#141912] dark:text-white shadow-xs'
+              : 'text-[#6F766C] dark:text-slate-400 hover:text-[#141912] dark:hover:text-white'
           }`}
         >
           <History className="w-3.5 h-3.5" />
           <span>{t.serviceHistory}</span>
-          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-extrabold">
-            {serviceLogs.length}
-          </span>
+          <span className="tabular-nums opacity-70">({formatNumber(serviceLogs.length, language, numberFormat)})</span>
         </button>
       </div>
 
       {activeSubTab === 'reminders' ? (
-        /* Service Reminders List */
-        <div className="space-y-3">
-          {serviceItems.some((s) => s.lastServiceKm === 0) && currentOdo > 500 && onSyncServiceBaseline && (
-            <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 flex items-center justify-between gap-3 shadow-sm">
-              <div className="flex items-center gap-2.5">
-                <RotateCcw className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
-                <div>
-                  <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                    {language === 'bn' ? 'সার্ভিস বেসলাইন সিঙ্ক' : 'Sync Service Baseline'}
-                  </p>
-                  <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5 leading-snug">
-                    {language === 'bn'
-                      ? `সার্ভিস পূর্বের ০ কিমিতে সেট আছে। বর্তমান ${formatNumber(currentOdo, language, numberFormat)} কিমি থেকে শুরু করতে চাইলে সিঙ্ক করুন।`
-                      : `Service baseline is at 0 km. Sync from current ${formatNumber(currentOdo, language, numberFormat)} km?`}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => onSyncServiceBaseline(currentOdo)}
-                className="shrink-0 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs shadow-sm transition"
-              >
-                {language === 'bn' ? 'সিঙ্ক করুন' : 'Sync All'}
-              </button>
-            </div>
-          )}
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {serviceUrgentList.map((urgency) => {
             const item = urgency.item;
             const itemName = language === 'bn' ? item.nameBn : item.nameEn;
             const dueKm = item.lastServiceKm + item.kmInterval;
 
-            // Status Styling
-            let cardBorder = 'border-slate-200 dark:border-slate-800';
-            let badgeClass = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800';
-            let progressBg = 'bg-emerald-500';
+            let iconBg = 'bg-[#EEF9DA] text-[#5C9E00] dark:bg-[#9AE62E]/15 dark:text-[#A3EC38]';
+            let IconComp = Wrench;
+            let progressBg = 'bg-[#92E328]';
+            let statusColor = 'text-[#5C9E00] dark:text-[#A3EC38]';
             let statusTitle = t.inGoodCondition;
 
             if (urgency.status === 'red') {
-              cardBorder = 'border-red-300 dark:border-red-900/60 shadow-red-500/5';
-              badgeClass = 'bg-red-100 text-red-800 dark:bg-red-950/70 dark:text-red-300 border-red-300 dark:border-red-800 animate-pulse';
-              progressBg = 'bg-red-500';
+              iconBg = 'bg-[#FFEEEE] text-rose-500 dark:bg-rose-500/15 dark:text-rose-400';
+              IconComp = AlertTriangle;
+              progressBg = 'bg-rose-500';
+              statusColor = 'text-rose-600 dark:text-rose-400';
               statusTitle = t.overdue;
             } else if (urgency.status === 'yellow') {
-              cardBorder = 'border-amber-300 dark:border-amber-900/60 shadow-amber-500/5';
-              badgeClass = 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border-amber-300 dark:border-amber-800';
+              iconBg = 'bg-[#FFF6E5] text-amber-500 dark:bg-amber-500/15 dark:text-amber-400';
+              IconComp = Clock;
               progressBg = 'bg-amber-500';
+              statusColor = 'text-amber-600 dark:text-amber-400';
               statusTitle = t.dueSoon;
             }
 
-            // Calculation percentage of interval used
             const totalIntervalKm = item.kmInterval;
             const usedKm = totalIntervalKm - urgency.kmRemaining;
             const percentUsed = Math.min(100, Math.max(0, Math.round((usedKm / totalIntervalKm) * 100)));
@@ -164,77 +127,93 @@ export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
             return (
               <div
                 key={item.id}
-                className={`bg-white dark:bg-slate-900 rounded-3xl p-4.5 border-2 ${cardBorder} shadow-sm transition hover:shadow-md`}
+                className="bg-white dark:bg-[#171C18] rounded-[24px] p-4.5 border border-black/[0.04] dark:border-white/[0.06] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between"
               >
-                {/* Header row with Title & Status Badge */}
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <span className={`w-3 h-3 rounded-full ${progressBg} shrink-0`} />
-                      <span>{itemName}</span>
-                    </h2>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {language === 'bn' ? item.nameEn : item.nameBn}
-                    </p>
-                  </div>
+                <div>
+                  {/* Header row */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}
+                      >
+                        <IconComp className="w-[18px] h-[18px]" />
+                      </div>
+                      <div className="min-w-0">
+                        <h2 className="text-[15px] font-extrabold text-[#141912] dark:text-white truncate">
+                          {itemName}
+                        </h2>
+                        <p className="text-xs text-[#6F766C] dark:text-slate-400 truncate">
+                          {language === 'bn' ? item.nameEn : item.nameBn}
+                        </p>
+                      </div>
+                    </div>
 
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${badgeClass} shrink-0`}
-                  >
-                    {statusTitle}
-                  </span>
-                </div>
-
-                {/* Progress bar */}
-                <div className="mt-3.5">
-                  <div className="flex items-center justify-between text-xs mb-1.5 font-medium">
-                    <span className="text-slate-500 dark:text-slate-400">
-                      {language === 'bn' ? urgency.statusTextBn : urgency.statusTextEn}
-                    </span>
-                    <span className="font-bold font-mono text-slate-700 dark:text-slate-300">
-                      {percentUsed}%
+                    <span className={`text-xs font-extrabold shrink-0 ${statusColor}`}>
+                      {statusTitle}
                     </span>
                   </div>
-                  <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${progressBg}`}
-                      style={{ width: `${percentUsed}%` }}
-                    />
-                  </div>
-                </div>
 
-                {/* Details Grid */}
-                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-slate-400 block text-[11px]">{t.lastServiceKm}</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">
-                      {formatNumber(item.lastServiceKm, language, numberFormat)} {t.km}
-                    </span>
-                    {item.lastServiceDate && (
-                      <span className="block text-[10px] text-slate-400">
-                        {formatDate(item.lastServiceDate, language)}
+                  {/* Clean Progress bar */}
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between text-xs mb-1.5 font-medium">
+                      <span className="text-[#6F766C] dark:text-slate-400">
+                        {language === 'bn' ? urgency.statusTextBn : urgency.statusTextEn}
                       </span>
-                    )}
+                      <span className="font-extrabold tabular-nums text-[#141912] dark:text-white">
+                        {formatNumber(percentUsed, language, numberFormat)}%
+                      </span>
+                    </div>
+                    <div className="w-full h-2.5 rounded-full bg-[#F0F2EC] dark:bg-white/[0.08] overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${progressBg}`}
+                        style={{ width: `${percentUsed}%` }}
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <span className="text-slate-400 block text-[11px]">{language === 'bn' ? 'পরবর্তী ডিউ' : 'Next Due'}</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">
-                      {formatNumber(dueKm, language, numberFormat)} {t.km}
-                    </span>
-                    <span className="block text-[10px] text-slate-400">
-                      (প্রতি {formatNumber(item.kmInterval, language, numberFormat)} {t.km}
-                      {item.dayInterval ? ` / ${formatNumber(item.dayInterval, language, numberFormat)} দিন` : ''})
-                    </span>
+                  {/* Clean Metadata Grid */}
+                  <div className="mt-4 pt-3 border-t border-black/[0.05] dark:border-white/[0.07] grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-[#6F766C] dark:text-slate-400 block text-[11px]">
+                        {t.lastServiceKm}
+                      </span>
+                      <span className="font-bold tabular-nums text-[#141912] dark:text-white">
+                        {formatNumber(item.lastServiceKm, language, numberFormat)} {t.km}
+                      </span>
+                      {item.lastServiceDate && (
+                        <span className="block text-[10px] text-[#7A8277] dark:text-slate-400">
+                          {formatDate(item.lastServiceDate, language)}
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <span className="text-[#6F766C] dark:text-slate-400 block text-[11px]">
+                        {language === 'bn' ? 'পরবর্তী ডিউ' : 'Next Due'}
+                      </span>
+                      <span className="font-bold tabular-nums text-[#141912] dark:text-white">
+                        {formatNumber(dueKm, language, numberFormat)} {t.km}
+                      </span>
+                      <span className="block text-[10px] text-[#7A8277] dark:text-slate-400 tabular-nums">
+                        ({language === 'bn' ? 'প্রতি' : 'every'}{' '}
+                        {formatNumber(item.kmInterval, language, numberFormat)} {t.km}
+                        {item.dayInterval
+                          ? ` · ${formatNumber(item.dayInterval, language, numberFormat)} ${
+                              language === 'bn' ? 'দিন' : 'days'
+                            }`
+                          : ''}
+                        )
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Card Actions */}
-                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div className="mt-4 pt-3 border-t border-black/[0.05] dark:border-white/[0.07] flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => onOpenEditService(item)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                      className="w-10 h-10 rounded-full text-[#6F766C] dark:text-slate-400 hover:text-[#141912] dark:hover:text-white hover:bg-[#F6F7F4] dark:hover:bg-white/[0.06] flex items-center justify-center transition"
                       aria-label={t.edit}
                       title={t.edit}
                     >
@@ -243,7 +222,7 @@ export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
 
                     <button
                       onClick={() => setItemToDelete(item)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                      className="w-10 h-10 rounded-full text-[#6F766C] dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-[#FFEEEE] dark:hover:bg-rose-500/15 flex items-center justify-center transition"
                       aria-label={t.delete}
                       title={t.delete}
                     >
@@ -253,9 +232,9 @@ export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
 
                   <button
                     onClick={() => onOpenMarkService(item.id)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[42px] rounded-full bg-[#9AE62E] hover:bg-[#8CD825] active:scale-95 text-[#141912] font-bold text-xs shadow-xs transition"
                   >
-                    <Check className="w-4 h-4 stroke-[3]" />
+                    <Check className="w-4 h-4 stroke-[2.8]" />
                     <span>{t.markDone}</span>
                   </button>
                 </div>
@@ -265,43 +244,47 @@ export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
         </div>
       ) : (
         /* Service History Log */
-        <div className="space-y-3">
+        <div>
           {serviceLogs.length === 0 ? (
-            <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 text-center">
-              <History className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+            <div className="bg-white dark:bg-[#171C18] rounded-[26px] p-8 border border-black/[0.04] dark:border-white/[0.06] text-center shadow-[0_2px_12px_rgba(15,23,42,0.03)]">
+              <div className="w-12 h-12 rounded-full bg-[#F6F7F4] dark:bg-white/[0.06] text-[#7A8277] flex items-center justify-center mx-auto mb-2.5">
+                <History className="w-6 h-6" />
+              </div>
+              <p className="text-xs font-medium text-[#6F766C] dark:text-slate-400">
                 {t.noServiceHistory}
               </p>
             </div>
           ) : (
-            <div className="space-y-2.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {[...serviceLogs]
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || b.odometer - a.odometer)
                 .map((log) => (
                   <div
                     key={log.id}
-                    className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm flex items-start justify-between gap-3"
+                    className="bg-white dark:bg-[#171C18] rounded-[22px] p-4 border border-black/[0.04] dark:border-white/[0.06] shadow-[0_2px_10px_rgba(15,23,42,0.03)] flex items-center justify-between gap-3"
                   >
-                    <div>
-                      <h4 className="font-bold text-sm text-slate-900 dark:text-white">
-                        {log.serviceItemName}
-                      </h4>
-                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        <span className="font-mono font-medium">
-                          {formatNumber(log.odometer, language, numberFormat)} {t.km}
-                        </span>
-                        <span>•</span>
-                        <span>{formatDate(log.date, language)}</span>
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-10 h-10 rounded-full bg-[#EEF9DA] dark:bg-[#9AE62E]/15 text-[#5C9E00] dark:text-[#A3EC38] flex items-center justify-center shrink-0">
+                        <Check className="w-[18px] h-[18px]" />
                       </div>
-                      {log.notes && (
-                        <p className="text-xs text-slate-400 italic mt-1">
-                          "{log.notes}"
-                        </p>
-                      )}
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold text-sm text-[#141912] dark:text-white truncate">
+                          {log.serviceItemName}
+                        </h4>
+                        <div className="text-xs text-[#6F766C] dark:text-slate-400 mt-0.5 tabular-nums truncate">
+                          {formatNumber(log.odometer, language, numberFormat)} {t.km} ·{' '}
+                          {formatDate(log.date, language)}
+                        </div>
+                        {log.notes && (
+                          <p className="text-xs text-[#7A8277] dark:text-slate-400 italic mt-0.5 truncate">
+                            "{log.notes}"
+                          </p>
+                        )}
+                      </div>
                     </div>
 
                     {log.cost !== undefined && log.cost > 0 && (
-                      <div className="text-right shrink-0 font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                      <div className="text-right shrink-0 font-extrabold tabular-nums text-[#5C9E00] dark:text-[#A3EC38] text-sm">
                         {formatCurrency(log.cost, language, numberFormat)}
                       </div>
                     )}

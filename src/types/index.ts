@@ -25,6 +25,7 @@ export interface FuelEntry {
   isFullTank: boolean;
   notes?: string;
   fuelType?: 'Octane' | 'Petrol';
+  createdAt?: string;
 }
 
 export interface ServiceItem {

@@ -1,25 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { Bike, Language, NumberFormatType } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Bike, ServiceItem, ServiceLog, Language, NumberFormatType } from '../types';
 import { translations, formatNumber } from '../utils/i18n';
+import { autoSyncServicesForOdometerChange, calculateServiceUrgency } from '../utils/calculations';
 import {
   Gauge,
   X,
   AlertTriangle,
-  CheckCircle2,
-  Info,
-  ArrowRight,
-  ShieldCheck,
+  Sparkles,
   RotateCcw,
-  Sliders,
 } from 'lucide-react';
 
 interface ResetOdometerModalProps {
   isOpen: boolean;
   onClose: () => void;
   bike: Bike | null;
+  serviceItems: ServiceItem[];
+  serviceLogs: ServiceLog[];
   onResetOdometer: (
     newOdometer: number,
-    serviceMode: 'keep' | 'shift' | 'resetAll',
+    resetAllServices: boolean,
     clearPriorFuel: boolean
   ) => void;
   language: Language;
@@ -30,6 +29,8 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
   isOpen,
   onClose,
   bike,
+  serviceItems,
+  serviceLogs,
   onResetOdometer,
   language,
   numberFormat,
@@ -37,28 +38,47 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
   const t = translations[language];
 
   const [newOdoInput, setNewOdoInput] = useState<string>('');
-  const [serviceMode, setServiceMode] = useState<'keep' | 'shift' | 'resetAll'>('keep');
+  const [resetAllServices, setResetAllServices] = useState<boolean>(false);
   const [clearPriorFuel, setClearPriorFuel] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Set default input when modal opens or bike changes
   useEffect(() => {
     if (bike) {
       setNewOdoInput(bike.currentOdometer.toString());
       setError(null);
-      setServiceMode('keep');
+      setResetAllServices(false);
       setClearPriorFuel(false);
     }
   }, [bike, isOpen]);
 
+  const parsed = parseFloat(newOdoInput);
+  const isValidParsed = !isNaN(parsed) && parsed >= 0;
+
+  const previewServices = useMemo(() => {
+    if (!bike || !isValidParsed) return [];
+    const bikeItems = serviceItems.filter((s) => s.bikeId === bike.id);
+    const { updatedItems } = autoSyncServicesForOdometerChange(
+      bikeItems,
+      bike,
+      bike.currentOdometer,
+      parsed,
+      serviceLogs,
+      new Date().toISOString().split('T')[0],
+      resetAllServices
+    );
+    return updatedItems
+      .map((item) => calculateServiceUrgency(item, parsed))
+      .sort((a, b) => a.urgencyScore - b.urgencyScore)
+      .slice(0, 3);
+  }, [bike, isValidParsed, parsed, serviceItems, serviceLogs, resetAllServices]);
+
   if (!isOpen || !bike) return null;
 
   const currentOdo = bike.currentOdometer;
-  const parsed = parseFloat(newOdoInput);
-  const diff = !isNaN(parsed) ? parsed - currentOdo : 0;
+  const diff = isValidParsed ? parsed - currentOdo : 0;
 
   const handleAddKm = (increment: number) => {
-    const current = parseFloat(newOdoInput) || currentOdo;
+    const current = !isNaN(parsed) ? parsed : currentOdo;
     setNewOdoInput(Math.max(0, current + increment).toString());
     setError(null);
   };
@@ -66,7 +86,7 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (isNaN(parsed) || parsed < 0) {
+    if (!isValidParsed) {
       setError(
         language === 'bn'
           ? 'অনুগ্রহ করে একটি সঠিক ওডোমিটার রিডিং (০ বা তার বেশি) লিখুন।'
@@ -75,60 +95,54 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
       return;
     }
 
-    onResetOdometer(parsed, serviceMode, clearPriorFuel);
+    onResetOdometer(parsed, resetAllServices, clearPriorFuel);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+      <div className="w-full max-w-md bg-white dark:bg-[#171C18] rounded-t-[28px] sm:rounded-[28px] shadow-2xl border border-black/[0.06] dark:border-white/[0.08] overflow-hidden max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/40">
+        <div className="px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <Gauge className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-full bg-[#EEF9DA] dark:bg-[#1E2B14] text-[#5C9E00] dark:text-[#A3EC38] flex items-center justify-center">
+              <Gauge className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                {language === 'bn' ? 'ওডোমিটার পরিবর্তন ও সমন্বয়' : 'Update Odometer & Sync'}
+              <h2 className="text-base font-extrabold text-[#141912] dark:text-white">
+                {language === 'bn' ? 'ওডোমিটার আপডেট' : 'Update Odometer'}
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {bike.name} • {bike.registrationNumber || bike.model}
+              <p className="text-xs text-[#6F766C] dark:text-slate-400">
+                {bike.name} · {bike.registrationNumber || bike.model}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-[#6F766C] hover:text-[#141912] dark:text-slate-400 dark:hover:text-white hover:bg-[#F6F7F4] dark:hover:bg-white/10 transition"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content Form */}
+        {/* Form */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto">
-          {/* Current Reading Card */}
-          <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <Gauge className="w-5 h-5 text-slate-500 dark:text-slate-400" />
-              <div>
-                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                  {t.currentOdoReading}
-                </span>
-                <span className="text-lg font-bold text-slate-900 dark:text-white">
-                  {formatNumber(currentOdo, language, numberFormat)} {t.km}
-                </span>
-              </div>
+          <div className="p-3.5 rounded-2xl bg-[#F6F7F4] dark:bg-white/[0.04] flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-semibold text-[#6F766C] dark:text-slate-400 block">
+                {t.currentOdoReading}
+              </span>
+              <span className="text-xl font-extrabold tabular-nums text-[#141912] dark:text-white">
+                {formatNumber(currentOdo, language, numberFormat)} {t.km}
+              </span>
             </div>
-
-            <span className="text-xs px-2.5 py-1 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium">
-              {language === 'bn' ? 'আগের রিডিং' : 'Current'}
+            <span className="text-xs font-bold text-[#5C9E00] dark:text-[#A3EC38]">
+              {language === 'bn' ? 'বর্তমান রিডিং' : 'Current'}
             </span>
           </div>
 
-          {/* Quick Preset Buttons */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
+            <label className="block text-xs font-semibold text-[#6F766C] dark:text-slate-400 mb-1.5">
               {language === 'bn' ? 'কুইক রিডিং যোগ করুন' : 'Quick Adjust'}
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -138,15 +152,15 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
                   setNewOdoInput(currentOdo.toString());
                   setError(null);
                 }}
-                className="px-3 py-2 rounded-xl text-xs font-medium bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-emerald-400 transition text-center"
+                className="px-3 py-2.5 min-h-[40px] rounded-2xl text-xs font-bold bg-[#F6F7F4] dark:bg-white/[0.05] text-[#141912] dark:text-slate-200 hover:bg-[#D7F49A] dark:hover:bg-[#1E2B14] transition text-center"
               >
-                {language === 'bn' ? 'বর্তমান রিডিং' : 'Reset to Current'}
+                {language === 'bn' ? 'আগের রিডিং' : 'Reset Input'}
               </button>
 
               <button
                 type="button"
                 onClick={() => handleAddKm(50)}
-                className="px-3 py-2 rounded-xl text-xs font-medium bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-emerald-400 transition text-center"
+                className="px-3 py-2.5 min-h-[40px] rounded-2xl text-xs font-bold bg-[#F6F7F4] dark:bg-white/[0.05] text-[#141912] dark:text-slate-200 hover:bg-[#D7F49A] dark:hover:bg-[#1E2B14] transition text-center"
               >
                 +৫০ কিমি
               </button>
@@ -154,22 +168,23 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleAddKm(100)}
-                className="px-3 py-2 rounded-xl text-xs font-medium bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-emerald-400 transition text-center"
+                className="px-3 py-2.5 min-h-[40px] rounded-2xl text-xs font-bold bg-[#F6F7F4] dark:bg-white/[0.05] text-[#141912] dark:text-slate-200 hover:bg-[#D7F49A] dark:hover:bg-[#1E2B14] transition text-center"
               >
                 +১০০ কিমি
               </button>
             </div>
           </div>
 
-          {/* New Odometer Reading Input */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-semibold text-[#3F4A39] dark:text-slate-300">
                 {language === 'bn' ? 'নতুন ওডোমিটার রিডিং (কিমি) *' : 'New Odometer Reading (km) *'}
               </label>
-              {!isNaN(parsed) && parsed !== currentOdo && (
-                <span className={`text-xs font-bold ${diff > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                  {diff > 0 ? `+${formatNumber(diff, language, numberFormat)} কিমি বৃদ্ধি` : `${formatNumber(Math.abs(diff), language, numberFormat)} কিমি কম`}
+              {isValidParsed && parsed !== currentOdo && (
+                <span className={`text-xs font-extrabold tabular-nums ${diff > 0 ? 'text-[#5C9E00] dark:text-[#A3EC38]' : 'text-amber-600 dark:text-amber-400'}`}>
+                  {diff > 0
+                    ? `+${formatNumber(diff, language, numberFormat)} ${t.km}`
+                    : `-${formatNumber(Math.abs(diff), language, numberFormat)} ${t.km}`}
                 </span>
               )}
             </div>
@@ -177,7 +192,7 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
             <div className="relative">
               <input
                 type="number"
-                step="1"
+                step="any"
                 min="0"
                 value={newOdoInput}
                 onChange={(e) => {
@@ -185,148 +200,108 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
                   setError(null);
                 }}
                 placeholder={currentOdo.toString()}
-                className="w-full px-4 py-3 pr-14 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-lg font-bold focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                className="w-full px-4 py-3 pr-14 rounded-2xl bg-[#F6F7F4] dark:bg-[#0D110E] border border-black/[0.08] dark:border-white/[0.1] text-[#141912] dark:text-white text-lg font-extrabold tabular-nums focus:ring-2 focus:ring-[#9AE62E] focus:outline-none transition"
               />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400 dark:text-slate-500">
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#6F766C] dark:text-slate-400">
                 {t.km}
               </span>
             </div>
           </div>
 
-          {/* Service Handling Options */}
-          <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-              {language === 'bn' ? 'সার্ভিস রেকর্ড কীভাবে আপডেট হবে?' : 'How should service records update?'}
-            </label>
+          {/* Auto-Sync Preview */}
+          <div className="p-3.5 rounded-2xl bg-[#EEF9DA]/70 dark:bg-[#1E2B14] border border-[#C6EA7E]/70 dark:border-[#9AE62E]/20 space-y-2">
+            <div className="flex items-start gap-2">
+              <Sparkles className="w-4 h-4 text-[#5C9E00] dark:text-[#A3EC38] shrink-0 mt-0.5" />
+              <p className="text-xs font-semibold text-[#141912] dark:text-[#ECFACB] leading-snug">
+                {language === 'bn'
+                  ? 'ওডোমিটার আপডেট করার সাথে সাথেই সব সার্ভিসের বাকি দূরত্ব অটোমেটিক সিঙ্ক ও আপডেট হয়ে যাবে।'
+                  : 'All service records and remaining distances auto-sync automatically with the new odometer.'}
+              </p>
+            </div>
 
-            {/* Mode 1: Keep Records & Recalculate remaining (Default / Recommended) */}
-            <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition ${
-              serviceMode === 'keep'
-                ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-400 dark:border-emerald-600 ring-1 ring-emerald-400/50'
-                : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
-            }`}>
-              <input
-                type="radio"
-                name="serviceMode"
-                value="keep"
-                checked={serviceMode === 'keep'}
-                onChange={() => setServiceMode('keep')}
-                className="mt-1 text-emerald-600 focus:ring-emerald-500 w-4 h-4 border-slate-300 dark:border-slate-600"
-              />
-              <div className="flex-1">
-                <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  <span>{language === 'bn' ? 'বিদ্যমান রেকর্ড রাখুন (প্রস্তাবিত)' : 'Keep Existing Records (Recommended)'}</span>
-                </span>
-                <span className="text-[11px] text-slate-600 dark:text-slate-400 block mt-0.5 leading-relaxed">
-                  {language === 'bn'
-                    ? 'আগের সার্ভিস রেকর্ড মুছবে না; নতুন ওডোমিটার অনুযায়ী বাকি কিমি (Remaining KM) স্বয়ংক্রিয়ভাবে হিসাব হবে।'
-                    : 'Previous service records stay safe; remaining km is recalculated directly from the new odometer.'}
-                </span>
+            {previewServices.length > 0 && (
+              <div className="pt-2 border-t border-black/[0.06] dark:border-white/[0.1] space-y-1">
+                {previewServices.map((u) => (
+                  <div key={u.item.id} className="flex items-center justify-between text-[11px]">
+                    <span className="text-[#3F4A39] dark:text-slate-300 font-medium truncate pr-2">
+                      {language === 'bn' ? u.item.nameBn : u.item.nameEn}
+                    </span>
+                    <span
+                      className={`font-bold shrink-0 tabular-nums ${
+                        u.kmRemaining <= 0
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : u.kmRemaining <= 200
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-[#5C9E00] dark:text-[#A3EC38]'
+                      }`}
+                    >
+                      {u.kmRemaining <= 0
+                        ? `${formatNumber(Math.abs(u.kmRemaining), language, numberFormat)} ${t.km} ${language === 'bn' ? 'বেশি' : 'past'}`
+                        : `${formatNumber(u.kmRemaining, language, numberFormat)} ${t.km} ${language === 'bn' ? 'বাকি' : 'left'}`}
+                    </span>
+                  </div>
+                ))}
               </div>
-            </label>
-
-            {/* Mode 2: Shift by difference */}
-            <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition ${
-              serviceMode === 'shift'
-                ? 'bg-blue-50/80 dark:bg-blue-950/30 border-blue-400 dark:border-blue-600 ring-1 ring-blue-400/50'
-                : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
-            }`}>
-              <input
-                type="radio"
-                name="serviceMode"
-                value="shift"
-                checked={serviceMode === 'shift'}
-                onChange={() => setServiceMode('shift')}
-                className="mt-1 text-blue-600 focus:ring-blue-500 w-4 h-4 border-slate-300 dark:border-slate-600"
-              />
-              <div className="flex-1">
-                <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                  <span>{language === 'bn' ? 'সার্ভিস রেকর্ড ওডোমিটারের দূরত্বের সাথে শিফট করুন' : 'Shift Records by Odometer Difference'}</span>
-                </span>
-                <span className="text-[11px] text-slate-600 dark:text-slate-400 block mt-0.5 leading-relaxed">
-                  {language === 'bn'
-                    ? `ওডোমিটার যত বেড়েছে বা কমেছে (${diff >= 0 ? '+' : ''}${formatNumber(diff, language, numberFormat)} কিমি), পূর্বের সার্ভিসের রিডিংও সেই পরিমাণ সমন্বয় হবে।`
-                    : `Shift all previous service milestones by the odometer difference (${diff >= 0 ? '+' : ''}${diff} km).`}
-                </span>
-              </div>
-            </label>
-
-            {/* Mode 3: Reset all to new odometer */}
-            <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition ${
-              serviceMode === 'resetAll'
-                ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/50'
-                : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
-            }`}>
-              <input
-                type="radio"
-                name="serviceMode"
-                value="resetAll"
-                checked={serviceMode === 'resetAll'}
-                onChange={() => setServiceMode('resetAll')}
-                className="mt-1 text-amber-600 focus:ring-amber-500 w-4 h-4 border-slate-300 dark:border-slate-600"
-              />
-              <div className="flex-1">
-                <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <RotateCcw className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                  <span>{language === 'bn' ? 'সব সার্ভিস নতুন ওডোমিটারে ফ্রেশ শুরু করুন' : 'Reset All Services to New Odometer'}</span>
-                </span>
-                <span className="text-[11px] text-slate-600 dark:text-slate-400 block mt-0.5 leading-relaxed">
-                  {language === 'bn'
-                    ? 'সব সার্ভিসের শেষ সার্ভিস কিমি নতুন ওডোমিটারে সেট করে নতুন সাইকেল শুরু হবে।'
-                    : 'Set all services as last done at this new odometer reading.'}
-                </span>
-              </div>
-            </label>
+            )}
           </div>
 
-          {/* Danger wipe option (Separate and off by default) */}
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+          <div className="space-y-2 pt-1 border-t border-black/[0.05] dark:border-white/[0.08]">
+            <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition ${
+              resetAllServices
+                ? 'bg-[#FFF6E5] dark:bg-amber-950/30 border-amber-300 dark:border-amber-800'
+                : 'bg-[#F6F7F4] dark:bg-white/[0.03] border-black/[0.05] dark:border-white/[0.06]'
+            }`}>
+              <input
+                type="checkbox"
+                checked={resetAllServices}
+                onChange={(e) => setResetAllServices(e.target.checked)}
+                className="mt-0.5 rounded accent-amber-500 w-4 h-4"
+              />
+              <span className="text-xs font-bold text-[#141912] dark:text-slate-200 flex items-center gap-1.5">
+                <RotateCcw className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>
+                  {language === 'bn'
+                    ? 'সব সার্ভিস এই ওডোমিটার থেকে নতুন করে শুরু করুন (ঐচ্ছিক)'
+                    : 'Start all services fresh from this odometer (Optional)'}
+                </span>
+              </span>
+            </label>
+
             <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition ${
               clearPriorFuel
-                ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800'
-                : 'bg-slate-50/60 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800'
+                ? 'bg-[#FFEEEE] dark:bg-rose-950/30 border-rose-300 dark:border-rose-800'
+                : 'bg-[#F6F7F4] dark:bg-white/[0.03] border-black/[0.05] dark:border-white/[0.06]'
             }`}>
               <input
                 type="checkbox"
                 checked={clearPriorFuel}
                 onChange={(e) => setClearPriorFuel(e.target.checked)}
-                className="mt-0.5 rounded text-rose-600 focus:ring-rose-500 w-4 h-4 border-slate-300 dark:border-slate-600"
+                className="mt-0.5 rounded accent-rose-600 w-4 h-4"
               />
-              <div>
-                <span className={`text-xs font-bold block ${clearPriorFuel ? 'text-rose-900 dark:text-rose-200' : 'text-slate-700 dark:text-slate-300'}`}>
-                  {language === 'bn' ? 'পূর্বের ফুয়েল ও সার্ভিস লগ মুছে দিন (ঐচ্ছিক)' : 'Wipe prior fuel & service history (Optional)'}
-                </span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5 leading-snug">
-                  {language === 'bn'
-                    ? 'সাধারণ ওডোমিটার আপডেটে এটি বন্ধ রাখুন। শুধু নতুনভাবে সব মুছে শুরু করতে চাইলে টিক দিন।'
-                    : 'Keep unchecked for normal odometer updates. Only check if you want to wipe history.'}
-                </span>
-              </div>
+              <span className={`text-xs font-bold block ${clearPriorFuel ? 'text-rose-800 dark:text-rose-200' : 'text-[#141912] dark:text-slate-300'}`}>
+                {language === 'bn' ? 'পূর্বের ফুয়েল ও সার্ভিস লগ মুছে দিন (ঐচ্ছিক)' : 'Wipe prior fuel & service history (Optional)'}
+              </span>
             </label>
           </div>
 
-          {/* Error Message */}
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-300 text-xs">
+            <div className="flex items-center gap-2 p-3 rounded-2xl bg-[#FFEEEE] dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-300 text-xs">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2.5 pt-2">
+          <div className="flex items-center justify-end gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+              className="px-4 py-2.5 min-h-[44px] rounded-full text-xs font-semibold text-[#6F766C] dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 transition"
             >
               {translations[language].cancel}
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-1.5"
+              className="px-6 py-2.5 min-h-[44px] rounded-full bg-[#9AE62E] hover:bg-[#8CD825] active:scale-95 text-[#141912] text-xs font-bold shadow-sm transition flex items-center gap-1.5"
             >
               <Gauge className="w-3.5 h-3.5" />
               <span>{language === 'bn' ? 'ওডোমিটার আপডেট করুন' : 'Update Odometer'}</span>

@@ -1,18 +1,15 @@
 import React, { useState } from 'react';
 import { FuelEntry, Bike, Language, NumberFormatType, FuelPriceSettings } from '../types';
 import { translations, formatNumber, formatCurrency, formatDate } from '../utils/i18n';
+import { isFuelEntryAfterReset } from '../utils/calculations';
 import { ConfirmDialog } from './ConfirmDialog';
 import {
   Fuel,
   Plus,
   Trash2,
   Edit2,
-  CheckCircle,
-  HelpCircle,
   AlertCircle,
   Droplets,
-  Calendar,
-  Gauge,
   Sparkles,
 } from 'lucide-react';
 
@@ -61,10 +58,13 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Highest recorded odometer for recommendation
+  const relevantFuels = fuelEntries.filter((f) =>
+    isFuelEntryAfterReset(f, bike.odometerResetAt)
+  );
+
   const maxOdo = Math.max(
     bike.currentOdometer,
-    ...fuelEntries.map((f) => f.odometer),
+    ...relevantFuels.map((f) => f.odometer),
     bike.initialOdometer
   );
 
@@ -85,7 +85,6 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
 
   const handleOpenAdd = () => {
     resetForm();
-    // Pre-populate with reasonable next odometer
     setOdometer((maxOdo + 150).toString());
     setUnitPrice((fuelPrices?.octane || 165).toString());
     setIsFormOpen(true);
@@ -207,47 +206,48 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
     resetForm();
   };
 
-  // Sort entries newest first
   const sortedEntries = [...fuelEntries].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || b.odometer - a.odometer
   );
 
   return (
-    <div className="space-y-4 pb-20 pt-2 animate-fadeIn">
-      {/* Top Header bar with Add button */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 pb-6 pt-1 animate-fadeIn">
+      {/* Top Header Row */}
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Fuel className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            <span>{t.fuelLogTitle}</span>
+          <h1 className="text-xl font-extrabold text-[#141912] dark:text-white tracking-tight">
+            {t.fuelLogTitle}
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {formatNumber(fuelEntries.length, language, numberFormat)} {language === 'bn' ? 'টি এন্ট্রি সংরক্ষিত' : 'entries recorded'}
+          <p className="text-xs font-medium text-[#6F766C] dark:text-slate-400 tabular-nums mt-0.5">
+            {formatNumber(fuelEntries.length, language, numberFormat)}{' '}
+            {language === 'bn' ? 'টি এন্ট্রি সংরক্ষিত' : 'entries recorded'}
           </p>
         </div>
 
         {!isFormOpen && (
           <button
             onClick={handleOpenAdd}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-md shadow-emerald-600/20 active:scale-95 transition"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-full bg-[#9AE62E] hover:bg-[#8CD825] text-[#141912] font-bold text-xs shadow-sm active:scale-95 transition shrink-0"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>{t.addNewFuel}</span>
           </button>
         )}
       </div>
 
-      {/* Add / Edit Form Card */}
+      {/* Add / Edit Inline Card */}
       {isFormOpen && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border-2 border-emerald-500/40 shadow-xl transition">
-          <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Fuel className="w-4 h-4 text-emerald-500" />
+        <div className="bg-white dark:bg-[#171C18] rounded-[26px] p-5 border border-[#9AE62E]/60 dark:border-[#9AE62E]/30 shadow-[0_8px_28px_rgba(15,23,42,0.06)] transition">
+          <div className="flex items-center justify-between pb-3 mb-4 border-b border-black/[0.06] dark:border-white/[0.08]">
+            <h2 className="text-base font-extrabold text-[#141912] dark:text-white flex items-center gap-2">
+              <span className="w-8 h-8 rounded-full bg-[#FFF3EB] dark:bg-orange-500/15 text-orange-500 flex items-center justify-center">
+                <Fuel className="w-4 h-4" />
+              </span>
               <span>{editingEntryId ? t.editFuel : t.addNewFuel}</span>
             </h2>
             <button
               onClick={resetForm}
-              className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              className="min-h-[36px] px-3 rounded-full text-xs font-semibold text-[#6F766C] hover:text-[#141912] dark:text-slate-400 dark:hover:text-white"
             >
               {t.cancel}
             </button>
@@ -255,37 +255,34 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
             {formError && (
-              <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+              <div className="p-3 rounded-2xl bg-[#FFEEEE] dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                 <span>{formError}</span>
               </div>
             )}
 
-            {/* Date and Fuel Type */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                   {t.date}
                 </label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    required
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
+                <input
+                  type="date"
+                  required
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs font-semibold focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
+                />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                   {t.fuelType}
                 </label>
                 <select
                   value={fuelType}
                   onChange={(e) => handleFuelTypeChange(e.target.value as 'Octane' | 'Petrol')}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold"
+                  className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs font-semibold focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
                 >
                   <option value="Octane">{t.octane} (৳{fuelPrices?.octane || 165}/L)</option>
                   <option value="Petrol">{t.petrol} (৳{fuelPrices?.petrol || 155}/L)</option>
@@ -293,14 +290,13 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
               </div>
             </div>
 
-            {/* Unit Price (Price per Litre) with Auto-Calculation */}
-            <div className="p-3 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60">
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <div className="p-3.5 rounded-2xl bg-[#EEF9DA]/70 dark:bg-[#1E2B14] border border-[#C6EA7E]/70 dark:border-[#9AE62E]/20">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-[#141912] dark:text-[#ECFACB] flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#5C9E00] dark:text-[#A3EC38]" />
                   <span>{t.unitPriceLabel}</span>
                 </label>
-                <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
+                <span className="text-[10px] text-[#3F4A39] dark:text-[#CBE795] font-medium">
                   {t.unitPriceHelp}
                 </span>
               </div>
@@ -312,31 +308,30 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
                     required
                     value={unitPrice}
                     onChange={(e) => handleUnitPriceChange(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#0D110E] text-[#141912] dark:text-white text-sm font-bold tabular-nums focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
                   />
-                  <span className="absolute right-3 top-2 text-xs text-slate-400 font-bold">
+                  <span className="absolute right-3 top-2 text-xs text-[#6F766C] dark:text-slate-400 font-bold">
                     {t.bdt}/{t.litres}
                   </span>
                 </div>
-                <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-emerald-800 dark:text-emerald-300 shrink-0 select-none">
+                <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-semibold text-[#141912] dark:text-[#CBE795] shrink-0 select-none">
                   <input
                     type="checkbox"
                     checked={saveAsDefault}
                     onChange={(e) => setSaveAsDefault(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                    className="w-4 h-4 rounded accent-[#5C9E00]"
                   />
                   <span>{t.saveAsDefaultPrice}</span>
                 </label>
               </div>
             </div>
 
-            {/* Odometer */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <label className="text-xs font-semibold text-[#3F4A39] dark:text-slate-300">
                   {t.odometerReading} *
                 </label>
-                <span className="text-[11px] text-slate-400">
+                <span className="text-[11px] text-[#6F766C] dark:text-slate-400 tabular-nums">
                   {language === 'bn' ? 'আগের ওডোমিটার:' : 'Prev:'}{' '}
                   {formatNumber(maxOdo, language, numberFormat)} {t.km}
                 </span>
@@ -349,18 +344,17 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
                   placeholder={`যেমন: ${maxOdo + 100}`}
                   value={odometer}
                   onChange={(e) => setOdometer(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-sm font-bold tabular-nums focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
                 />
-                <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">
+                <span className="absolute right-3.5 top-2.5 text-xs text-[#6F766C] dark:text-slate-400 font-semibold">
                   {t.km}
                 </span>
               </div>
             </div>
 
-            {/* Litres and Total Price */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                   {t.fuelLitres} *
                 </label>
                 <div className="relative">
@@ -371,16 +365,16 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
                     placeholder="10.0"
                     value={litres}
                     onChange={(e) => handleLitresChange(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-sm font-bold tabular-nums focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
                   />
-                  <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">
+                  <span className="absolute right-3 top-2.5 text-xs text-[#6F766C] dark:text-slate-400 font-semibold">
                     {t.litres}
                   </span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                   {t.totalPrice} *
                 </label>
                 <div className="relative">
@@ -391,51 +385,49 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
                     placeholder="1650"
                     value={totalPrice}
                     onChange={(e) => handleTotalPriceChange(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-sm font-bold tabular-nums focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
                   />
-                  <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">
+                  <span className="absolute right-3 top-2.5 text-xs text-[#6F766C] dark:text-slate-400 font-semibold">
                     {t.bdt}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Auto-calculation preview */}
             {parseFloat(litres) > 0 && parseFloat(unitPrice) > 0 && (
-              <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 text-xs">
-                <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <div className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-[#F6F7F4] dark:bg-white/[0.04] text-xs tabular-nums">
+                <span className="text-[#6F766C] dark:text-slate-400 flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-orange-500" />
                   <span>{t.autoCalculatedHint}:</span>
                 </span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {litres} {t.litres} × ৳{unitPrice} = <span className="text-emerald-600 dark:text-emerald-400 font-bold">৳{totalPrice}</span>
+                <span className="font-bold text-[#141912] dark:text-white">
+                  {litres} {t.litres} × ৳{unitPrice} ={' '}
+                  <span className="text-[#5C9E00] dark:text-[#A3EC38]">৳{totalPrice}</span>
                 </span>
               </div>
             )}
 
-            {/* Full Tank Checkbox with Explanatory Helper */}
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
+            <div className="p-3.5 rounded-2xl bg-[#F6F7F4] dark:bg-white/[0.04]">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={isFullTank}
                   onChange={(e) => setIsFullTank(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                  className="mt-0.5 w-4 h-4 rounded accent-[#5C9E00]"
                 />
                 <div>
-                  <span className="text-xs font-bold text-slate-900 dark:text-white">
+                  <span className="text-xs font-bold text-[#141912] dark:text-white">
                     {t.fullTankQuestion}
                   </span>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  <p className="text-[11px] text-[#6F766C] dark:text-slate-400 mt-0.5">
                     {t.fullTankHelp}
                   </p>
                 </div>
               </label>
             </div>
 
-            {/* Notes */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                 {t.notes}
               </label>
               <input
@@ -443,22 +435,21 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
                 placeholder={language === 'bn' ? 'যেমন: গুলশান পদ্মা ফিলিং স্টেশন' : 'e.g., Padma Filling Station'}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
               />
             </div>
 
-            {/* Action buttons */}
             <div className="pt-2 flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={resetForm}
-                className="px-4 py-2.5 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                className="px-4 py-2.5 min-h-[44px] rounded-full text-xs font-semibold text-[#6F766C] dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 transition"
               >
                 {t.cancel}
               </button>
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-semibold text-xs shadow-md shadow-emerald-600/25 transition"
+                className="px-5 py-2.5 min-h-[44px] rounded-full bg-[#9AE62E] hover:bg-[#8CD825] active:scale-95 text-[#141912] font-bold text-xs shadow-sm transition"
               >
                 {t.saveEntry}
               </button>
@@ -469,111 +460,112 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
 
       {/* Fuel Log Entries List */}
       {sortedEntries.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 text-center">
-          <Droplets className="w-10 h-10 text-emerald-500/60 mx-auto mb-2" />
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+        <div className="bg-white dark:bg-[#171C18] rounded-[26px] p-8 border border-black/[0.04] dark:border-white/[0.06] text-center shadow-[0_2px_12px_rgba(15,23,42,0.03)]">
+          <div className="w-12 h-12 rounded-full bg-[#EBF7FF] dark:bg-sky-500/15 text-sky-500 flex items-center justify-center mx-auto mb-3">
+            <Droplets className="w-6 h-6" />
+          </div>
+          <h3 className="text-sm font-extrabold text-[#141912] dark:text-white">
             {t.noFillsYet}
           </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs mx-auto">
+          <p className="text-xs text-[#6F766C] dark:text-slate-400 mt-1 max-w-xs mx-auto">
             {t.firstFillHelp}
           </p>
           <button
             onClick={handleOpenAdd}
-            className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold shadow"
+            className="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 min-h-[44px] rounded-full bg-[#9AE62E] hover:bg-[#8CD825] text-[#141912] text-xs font-bold shadow-sm transition active:scale-95"
           >
             <Plus className="w-4 h-4" />
             <span>{t.addNewFuel}</span>
           </button>
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {sortedEntries.map((entry) => {
             const calculatedMileage = calculatedMileages.get(entry.id);
 
             return (
               <div
                 key={entry.id}
-                className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm relative group hover:border-emerald-500/40 transition"
+                className="bg-white dark:bg-[#171C18] rounded-[24px] p-4 border border-black/[0.04] dark:border-white/[0.06] shadow-[0_2px_10px_rgba(15,23,42,0.03)] flex flex-col justify-between"
               >
                 <div className="flex items-start justify-between gap-3">
-                  {/* Left: Odometer & Date */}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-base font-extrabold tabular-nums text-slate-900 dark:text-white">
-                        {formatNumber(entry.odometer, language, numberFormat)} {t.km}
-                      </span>
-                      {entry.isFullTank ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                          {t.fullTankBadge}
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className="w-11 h-11 rounded-full bg-[#FFF3EB] dark:bg-orange-500/15 text-orange-500 flex items-center justify-center shrink-0 mt-0.5">
+                      <Fuel className="w-[18px] h-[18px]" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-base font-extrabold tabular-nums text-[#141912] dark:text-white">
+                          {formatNumber(entry.odometer, language, numberFormat)} {t.km}
                         </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                          {t.partialFillBadge}
+                        <span className="text-[#9EA69B]">·</span>
+                        <span
+                          className={`text-xs font-semibold ${
+                            entry.isFullTank
+                              ? 'text-[#5C9E00] dark:text-[#A3EC38]'
+                              : 'text-[#6F766C] dark:text-slate-400'
+                          }`}
+                        >
+                          {entry.isFullTank ? t.fullTankBadge : t.partialFillBadge}
                         </span>
+                      </div>
+
+                      <div className="text-xs text-[#6F766C] dark:text-slate-400 mt-1 tabular-nums truncate">
+                        {formatDate(entry.date, language)} ·{' '}
+                        {formatNumber(entry.litres, language, numberFormat, 2)} {t.litres} ·{' '}
+                        {entry.fuelType || 'Octane'}
+                      </div>
+
+                      {entry.notes && (
+                        <p className="text-xs text-[#7A8277] dark:text-slate-400 italic mt-1 truncate">
+                          "{entry.notes}"
+                        </p>
                       )}
                     </div>
-
-                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {formatDate(entry.date, language)}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        {formatNumber(entry.litres, language, numberFormat, 2)} {t.litres} ({entry.fuelType || 'Octane'})
-                      </span>
-                    </div>
-
-                    {entry.notes && (
-                      <p className="text-xs text-slate-400 italic mt-1">
-                        "{entry.notes}"
-                      </p>
-                    )}
                   </div>
 
-                  {/* Right: Calculated Mileage & Total Cost */}
+                  {/* Right: Total Cost & Mileage */}
                   <div className="text-right shrink-0">
-                    <div className="text-base font-bold text-slate-900 dark:text-white">
+                    <div className="text-base font-extrabold tabular-nums text-[#141912] dark:text-white">
                       {formatCurrency(entry.totalPrice, language, numberFormat)}
                     </div>
 
                     {calculatedMileage !== null && calculatedMileage !== undefined ? (
-                      <div className="mt-1">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-sm">
-                          {formatNumber(calculatedMileage, language, numberFormat, 1)} {t.kmPerLitre}
-                        </span>
+                      <div className="mt-0.5 text-xs font-extrabold tabular-nums text-[#5C9E00] dark:text-[#A3EC38]">
+                        {formatNumber(calculatedMileage, language, numberFormat, 1)} {t.kmPerLitre}
                       </div>
                     ) : (
-                      <div className="text-[10px] text-slate-400 mt-1">
+                      <div className="text-[11px] font-medium text-[#7A8277] dark:text-slate-400 mt-0.5">
                         {entry.isFullTank ? t.firstEntryBadge : t.partialFillBadge}
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Edit & Delete row */}
-                <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                  <span className="text-[11px] text-slate-400">
+                {/* Actions Footer */}
+                <div className="mt-3 pt-2.5 border-t border-black/[0.05] dark:border-white/[0.07] flex items-center justify-between text-xs">
+                  <span className="text-xs font-medium text-[#6F766C] dark:text-slate-400 tabular-nums">
                     {formatCurrency(entry.totalPrice / entry.litres, language, numberFormat, 2)}/{t.litres}
                   </span>
 
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleOpenEdit(entry)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                      className="w-10 h-10 rounded-full text-[#6F766C] dark:text-slate-400 hover:text-[#141912] dark:hover:text-white hover:bg-[#F6F7F4] dark:hover:bg-white/[0.06] flex items-center justify-center transition"
                       aria-label={t.edit}
                       title={t.edit}
                     >
-                      <Edit2 className="w-3.5 h-3.5" />
+                      <Edit2 className="w-4 h-4" />
                     </button>
 
                     <button
                       onClick={() => setEntryToDelete(entry)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                      className="w-10 h-10 rounded-full text-[#6F766C] dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-[#FFEEEE] dark:hover:bg-rose-500/15 flex items-center justify-center transition"
                       aria-label={t.delete}
                       title={t.delete}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>

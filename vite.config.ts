@@ -48,8 +48,7 @@ export default defineConfig(() => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         },
         devOptions: {
-          enabled: true,
-          type: 'module',
+          enabled: false,
         },
       }),
     ],
@@ -64,6 +63,8 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // Prevent Vite 8 forwardConsole from calling ws.send() when HMR WebSocket is disabled.
+      forwardConsole: process.env.DISABLE_HMR !== 'true',
     },
   };
 });

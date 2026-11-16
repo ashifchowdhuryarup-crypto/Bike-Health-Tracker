@@ -3,13 +3,38 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
+  html,
   body {
+    background-color: #f6f7f4;
+    color: #141912;
     font-family: 'Hind Siliguri', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html.dark,
+  html.dark body {
+    background-color: #0d110e;
+    color: #f4f6f0;
   }
 }
 
-/* Hide scrollbar for mobile touch feel */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.22s ease-out;
+}
+
+/* Hide scrollbar for horizontal touch strips & tables */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -17,4 +42,3 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
-

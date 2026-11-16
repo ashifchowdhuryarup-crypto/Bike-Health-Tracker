@@ -3,7 +3,6 @@ import { Bike, Language, NumberFormatType, FuelPriceSettings } from '../types';
 import { translations } from '../utils/i18n';
 import { ConfirmDialog } from './ConfirmDialog';
 import {
-  Settings,
   X,
   Bike as BikeIcon,
   Globe,
@@ -15,12 +14,10 @@ import {
   Database,
   Trash2,
   Plus,
-  Check,
   CheckCircle2,
   AlertCircle,
   Edit2,
   Fuel,
-  RotateCcw,
   Gauge,
 } from 'lucide-react';
 import { usePWAInstall } from '../utils/usePWAInstall';
@@ -88,22 +85,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onConfirm: () => void;
   } | null>(null);
 
-  // PWA Install State
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showPWAHelp, setShowPWAHelp] = useState(false);
 
-  // Fuel Prices State
   const [octanePriceInput, setOctanePriceInput] = useState<string>((fuelPrices?.octane || 165).toString());
   const [petrolPriceInput, setPetrolPriceInput] = useState<string>((fuelPrices?.petrol || 155).toString());
 
-  // Bike Edit state
   const [isEditingBike, setIsEditingBike] = useState(false);
   const [bikeName, setBikeName] = useState(activeBike?.name || '');
   const [bikeModel, setBikeModel] = useState(activeBike?.model || '');
   const [bikeReg, setBikeReg] = useState(activeBike?.registrationNumber || '');
   const [bikeInitialOdo, setBikeInitialOdo] = useState(activeBike?.initialOdometer.toString() || '0');
 
-  // Add new bike state
   const [isAddingBike, setIsAddingBike] = useState(false);
   const [newBikeName, setNewBikeName] = useState('');
   const [newBikeModel, setNewBikeModel] = useState('');
@@ -167,57 +160,56 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
     };
     reader.readAsText(file);
-    // Reset input
     e.target.value = '';
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-5 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+      <div className="w-full max-w-md bg-white dark:bg-[#171C18] rounded-t-[28px] sm:rounded-[28px] border border-black/[0.06] dark:border-white/[0.08] shadow-2xl p-5 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between pb-3 border-b border-black/[0.06] dark:border-white/[0.08]">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 p-1 flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
+            <div className="w-10 h-10 rounded-full bg-[#EEF9DA] dark:bg-[#1E2B14] p-2 flex items-center justify-center shrink-0">
               <img src="/logo.png" alt="Bike Tracker" className="w-full h-full object-contain dark:invert" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+              <h2 className="text-base font-extrabold text-[#141912] dark:text-white leading-tight">
                 {t.settingsTitle}
               </h2>
-              <span className="text-[11px] text-slate-400">Bike Tracker v1.2</span>
+              <span className="text-[11px] text-[#6F766C] dark:text-slate-400">Bike Tracker v1.2</span>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-[#6F766C] hover:text-[#141912] dark:text-slate-400 dark:hover:text-white hover:bg-[#F6F7F4] dark:hover:bg-white/10 transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Feedback message banner */}
+        {/* Feedback banner */}
         {statusMessage && (
           <div
-            className={`mt-3 p-3 rounded-xl text-xs flex items-center gap-2 ${
+            className={`mt-3 p-3 rounded-2xl text-xs flex items-center gap-2 ${
               statusMessage.type === 'success'
-                ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                : 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+                ? 'bg-[#EEF9DA] dark:bg-[#1E2B14] text-[#141912] dark:text-[#ECFACB] border border-[#C6EA7E] dark:border-[#9AE62E]/30'
+                : 'bg-[#FFEEEE] dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
             }`}
           >
             {statusMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-[#5C9E00] dark:text-[#A3EC38]" />
             ) : (
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
             )}
             <span>{statusMessage.text}</span>
           </div>
         )}
 
-        <div className="mt-4 space-y-5">
-          {/* Section 1: Active Bike Info */}
-          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4 border border-slate-200 dark:border-slate-700/60">
+        <div className="mt-4 space-y-4">
+          {/* Active Bike Info */}
+          <div className="bg-[#F6F7F4] dark:bg-white/[0.04] rounded-[24px] p-4 border border-black/[0.04] dark:border-white/[0.06]">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-xs font-bold text-[#6F766C] dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                 <BikeIcon className="w-3.5 h-3.5" />
                 {t.activeBike}
               </span>
@@ -230,7 +222,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     setBikeInitialOdo(activeBike.initialOdometer.toString());
                     setIsEditingBike(true);
                   }}
-                  className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                  className="text-xs font-bold text-[#5C9E00] dark:text-[#A3EC38] hover:underline flex items-center gap-1"
                 >
                   <Edit2 className="w-3 h-3" />
                   <span>{t.edit}</span>
@@ -241,7 +233,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {isEditingBike && activeBike ? (
               <form onSubmit={handleSaveActiveBike} className="space-y-3 mt-2">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                  <label className="block text-[11px] font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                     {t.bikeName}
                   </label>
                   <input
@@ -249,30 +241,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     required
                     value={bikeName}
                     onChange={(e) => setBikeName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    <label className="block text-[11px] font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                       {t.bikeModel}
                     </label>
                     <input
                       type="text"
                       value={bikeModel}
                       onChange={(e) => setBikeModel(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                      className="w-full px-3 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    <label className="block text-[11px] font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                       {t.regNumber}
                     </label>
                     <input
                       type="text"
                       value={bikeReg}
                       onChange={(e) => setBikeReg(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                      className="w-full px-3 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs"
                     />
                   </div>
                 </div>
@@ -281,30 +273,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsEditingBike(false)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500"
+                    className="px-3 py-2 rounded-full text-xs font-medium text-[#6F766C]"
                   >
                     {t.cancel}
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold text-xs"
+                    className="px-4 py-2 rounded-full bg-[#9AE62E] text-[#141912] font-bold text-xs"
                   >
                     {t.saveEntry}
                   </button>
                 </div>
               </form>
             ) : (
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-[#141912] dark:text-white text-sm truncate">
                     {activeBike?.name}
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <p className="text-xs text-[#6F766C] dark:text-slate-400 mt-0.5 truncate">
                     {activeBike?.registrationNumber || activeBike?.model}
                   </p>
-                  <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
-                    <span>{t.currentOdo}:</span>
-                    <span>{activeBike ? activeBike.currentOdometer.toLocaleString() : 0} {t.km}</span>
+                  <p className="text-xs font-bold text-[#5C9E00] dark:text-[#A3EC38] mt-1 tabular-nums">
+                    {t.currentOdo}: {activeBike ? activeBike.currentOdometer.toLocaleString() : 0} {t.km}
                   </p>
                 </div>
                 {onOpenResetOdo && (
@@ -314,26 +305,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       onClose();
                       onOpenResetOdo();
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition"
+                    className="flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-full bg-[#D7F49A] dark:bg-[#1E2B14] hover:bg-[#C6EA7E] text-[#141912] dark:text-[#ECFACB] text-xs font-bold transition shrink-0"
                     title={language === 'bn' ? 'ওডোমিটার পরিবর্তন / আপডেট' : 'Update Odometer'}
                   >
-                    <Gauge className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <Gauge className="w-3.5 h-3.5" />
                     <span>{language === 'bn' ? 'ওডো পরিবর্তন' : 'Update Odo'}</span>
                   </button>
                 )}
               </div>
             )}
 
-            {/* Bikes List for Switching / Adding */}
-            <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60">
+            {/* Bikes List */}
+            <div className="mt-3 pt-3 border-t border-black/[0.06] dark:border-white/[0.08]">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold text-slate-500">
+                <span className="text-[11px] font-semibold text-[#6F766C] dark:text-slate-400">
                   {t.manageBikes} ({bikes.length})
                 </span>
                 {!isAddingBike && (
                   <button
                     onClick={() => setIsAddingBike(true)}
-                    className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                    className="text-[11px] font-bold text-[#5C9E00] dark:text-[#A3EC38] hover:underline flex items-center gap-1"
                   >
                     <Plus className="w-3 h-3" />
                     <span>{t.addBike}</span>
@@ -342,14 +333,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               {isAddingBike && (
-                <form onSubmit={handleCreateNewBike} className="space-y-2.5 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 mb-2">
+                <form onSubmit={handleCreateNewBike} className="space-y-2.5 p-3 rounded-2xl bg-white dark:bg-[#171C18] border border-black/[0.06] dark:border-white/[0.08] mb-2">
                   <input
                     type="text"
                     required
                     placeholder={t.bikeName}
                     value={newBikeName}
                     onChange={(e) => setNewBikeName(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
+                    className="w-full px-3 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] text-xs bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white"
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <input
@@ -357,7 +348,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       placeholder={t.bikeModel}
                       value={newBikeModel}
                       onChange={(e) => setNewBikeModel(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
+                      className="w-full px-3 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] text-xs bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white"
                     />
                     <input
                       type="number"
@@ -365,20 +356,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       placeholder={t.initialOdo}
                       value={newBikeOdo}
                       onChange={(e) => setNewBikeOdo(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
+                      className="w-full px-3 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] text-xs bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white"
                     />
                   </div>
                   <div className="flex justify-end gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() => setIsAddingBike(false)}
-                      className="px-2.5 py-1 rounded text-xs text-slate-400"
+                      className="px-3 py-1.5 rounded-full text-xs text-[#6F766C]"
                     >
                       {t.cancel}
                     </button>
                     <button
                       type="submit"
-                      className="px-3 py-1 rounded bg-emerald-600 text-white text-xs font-semibold"
+                      className="px-4 py-1.5 rounded-full bg-[#9AE62E] text-[#141912] text-xs font-bold"
                     >
                       {t.saveEntry}
                     </button>
@@ -390,10 +381,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {bikes.map((b) => (
                   <div
                     key={b.id}
-                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs ${
+                    className={`flex items-center justify-between px-3 py-2 rounded-2xl text-xs ${
                       b.id === activeBike?.id
-                        ? 'bg-emerald-100 dark:bg-emerald-950/70 font-bold text-emerald-800 dark:text-emerald-300'
-                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                        ? 'bg-[#D7F49A] dark:bg-[#1E2B14] font-bold text-[#141912] dark:text-[#ECFACB]'
+                        : 'bg-white dark:bg-[#171C18] text-[#141912] dark:text-slate-300 hover:bg-black/5'
                     }`}
                   >
                     <button
@@ -417,7 +408,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             onConfirm: () => onDeleteBike(b.id),
                           });
                         }}
-                        className="p-1 text-slate-400 hover:text-red-500"
+                        className="p-1 text-[#6F766C] hover:text-rose-500"
                         title={t.delete}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -429,39 +420,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Section 2: Preferences (Language, Numbers, Theme) */}
-          <div className="space-y-3">
-            {/* Language Selection */}
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
+          {/* Preferences */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#F6F7F4] dark:bg-white/[0.04]">
               <div className="flex items-center gap-2.5">
-                <Globe className="w-4 h-4 text-emerald-500" />
+                <Globe className="w-4 h-4 text-[#5C9E00] dark:text-[#A3EC38]" />
                 <div>
-                  <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                  <span className="text-xs font-bold text-[#141912] dark:text-white block">
                     {t.languageSetting}
                   </span>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-[#6F766C] dark:text-slate-400">
                     {language === 'bn' ? 'বাংলা (ডিফল্ট)' : 'English'}
                   </span>
                 </div>
               </div>
 
-              <div className="flex rounded-xl bg-slate-200 dark:bg-slate-700 p-1">
+              <div className="flex rounded-xl bg-black/[0.05] dark:bg-white/[0.08] p-1">
                 <button
                   onClick={() => onSetLanguage('bn')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                     language === 'bn'
-                      ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-300'
+                      ? 'bg-white dark:bg-[#171C18] text-[#141912] dark:text-[#A3EC38] shadow-xs'
+                      : 'text-[#6F766C] dark:text-slate-300'
                   }`}
                 >
                   বাংলা
                 </button>
                 <button
                   onClick={() => onSetLanguage('en')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                     language === 'en'
-                      ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-300'
+                      ? 'bg-white dark:bg-[#171C18] text-[#141912] dark:text-[#A3EC38] shadow-xs'
+                      : 'text-[#6F766C] dark:text-slate-300'
                   }`}
                 >
                   English
@@ -469,37 +459,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            {/* Bengali Numbers vs Western Numbers */}
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#F6F7F4] dark:bg-white/[0.04]">
               <div className="flex items-center gap-2.5">
-                <Hash className="w-4 h-4 text-teal-500" />
+                <Hash className="w-4 h-4 text-sky-500" />
                 <div>
-                  <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                  <span className="text-xs font-bold text-[#141912] dark:text-white block">
                     {t.numFormatSetting}
                   </span>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-[#6F766C] dark:text-slate-400">
                     {numberFormat === 'bn' ? t.bengaliDigits : t.englishDigits}
                   </span>
                 </div>
               </div>
 
-              <div className="flex rounded-xl bg-slate-200 dark:bg-slate-700 p-1">
+              <div className="flex rounded-xl bg-black/[0.05] dark:bg-white/[0.08] p-1">
                 <button
                   onClick={() => onSetNumberFormat('bn')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
                     numberFormat === 'bn'
-                      ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-300'
+                      ? 'bg-white dark:bg-[#171C18] text-[#141912] dark:text-[#A3EC38] shadow-xs'
+                      : 'text-[#6F766C] dark:text-slate-300'
                   }`}
                 >
                   ১২৩৪
                 </button>
                 <button
                   onClick={() => onSetNumberFormat('en')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
                     numberFormat === 'en'
-                      ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-300'
+                      ? 'bg-white dark:bg-[#171C18] text-[#141912] dark:text-[#A3EC38] shadow-xs'
+                      : 'text-[#6F766C] dark:text-slate-300'
                   }`}
                 >
                   1234
@@ -507,19 +496,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            {/* Dark Mode Toggle */}
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#F6F7F4] dark:bg-white/[0.04]">
               <div className="flex items-center gap-2.5">
                 {darkMode ? (
                   <Sun className="w-4 h-4 text-amber-400" />
                 ) : (
-                  <Moon className="w-4 h-4 text-slate-600" />
+                  <Moon className="w-4 h-4 text-[#141912]" />
                 )}
                 <div>
-                  <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                  <span className="text-xs font-bold text-[#141912] dark:text-white block">
                     {t.themeSetting}
                   </span>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-[#6F766C] dark:text-slate-400">
                     {darkMode ? t.darkMode : t.lightMode}
                   </span>
                 </div>
@@ -527,10 +515,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               <button
                 onClick={onToggleDarkMode}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                className={`px-3.5 py-2 min-h-[38px] rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
                   darkMode
-                    ? 'bg-slate-700 text-amber-300'
-                    : 'bg-slate-200 text-slate-700'
+                    ? 'bg-white/10 text-amber-300'
+                    : 'bg-white text-[#141912] shadow-xs'
                 }`}
               >
                 {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
@@ -538,15 +526,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </button>
             </div>
 
-            {/* PWA Phone Install Option */}
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/10 border border-emerald-500/20">
+            {/* PWA Install */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#EEF9DA]/70 dark:bg-[#1E2B14] border border-[#C6EA7E]/70 dark:border-[#9AE62E]/20">
               <div className="flex items-center gap-2.5">
-                <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <Download className="w-4 h-4 text-[#5C9E00] dark:text-[#A3EC38]" />
                 <div>
-                  <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                  <span className="text-xs font-bold text-[#141912] dark:text-white block">
                     {language === 'bn' ? 'ফোনে ইনস্টল' : 'Install on Phone'}
                   </span>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  <span className="text-[11px] text-[#3F4A39] dark:text-[#CBE795]">
                     {isInstalled
                       ? (language === 'bn' ? 'অলরেডি ইনস্টল করা আছে' : 'Already installed')
                       : (language === 'bn' ? 'হোম স্ক্রিনে সরাসরি অ্যাপের মতো রাখুন' : 'Add to mobile home screen')}
@@ -564,7 +552,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       setShowPWAHelp(true);
                     }
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm active:scale-95 transition flex items-center gap-1"
+                  className="px-3.5 py-2 rounded-full bg-[#9AE62E] hover:bg-[#8CD825] text-[#141912] font-bold text-xs shadow-xs active:scale-95 transition flex items-center gap-1"
                 >
                   <Download className="w-3 h-3" />
                   <span>{language === 'bn' ? 'ইনস্টল' : 'Install'}</span>
@@ -572,18 +560,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               )}
             </div>
 
-            {/* PWA Help Guide Popup */}
             {showPWAHelp && (
-              <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs space-y-2">
+              <div className="p-3 rounded-2xl bg-[#F6F7F4] dark:bg-white/[0.04] text-xs space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900 dark:text-white">
+                  <span className="font-bold text-[#141912] dark:text-white">
                     {language === 'bn' ? 'কীভাবে ফোনে ইনস্টল করবেন:' : 'How to install on mobile:'}
                   </span>
-                  <button onClick={() => setShowPWAHelp(false)} className="text-slate-400 hover:text-slate-600">
+                  <button onClick={() => setShowPWAHelp(false)} className="text-[#6F766C]">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                <p className="text-[11px] text-[#6F766C] dark:text-slate-300 leading-relaxed">
                   {isIOS
                     ? (language === 'bn'
                       ? 'iPhone / Safari-তে নিচের Share আইকনে ট্যাপ করে "Add to Home Screen" চাপুন।'
@@ -595,21 +582,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             )}
 
-            {/* Fuel Prices Setting */}
-            <div className="p-3.5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 space-y-2.5">
+            {/* Fuel Prices */}
+            <div className="p-3.5 rounded-2xl bg-[#F6F7F4] dark:bg-white/[0.04] space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Fuel className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-xs font-bold text-[#141912] dark:text-white flex items-center gap-1.5">
+                  <Fuel className="w-4 h-4 text-orange-500" />
                   <span>{t.fuelPricesSetting}</span>
                 </span>
-                <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
+                <span className="text-[10px] text-[#6F766C] dark:text-slate-400 font-medium">
                   {t.bangladeshFriendlyTag}
                 </span>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                  <label className="block text-[11px] font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                     {t.octaneRate}
                   </label>
                   <div className="relative">
@@ -618,16 +605,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       step="any"
                       value={octanePriceInput}
                       onChange={(e) => setOctanePriceInput(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full px-2.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs font-bold tabular-nums focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
                     />
-                    <span className="absolute right-2.5 top-1.5 text-[11px] text-slate-400 font-semibold">
+                    <span className="absolute right-2.5 top-2 text-[11px] text-[#6F766C] font-semibold">
                       {t.bdt}
                     </span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                  <label className="block text-[11px] font-semibold text-[#3F4A39] dark:text-slate-300 mb-1">
                     {t.petrolRate}
                   </label>
                   <div className="relative">
@@ -636,9 +623,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       step="any"
                       value={petrolPriceInput}
                       onChange={(e) => setPetrolPriceInput(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full px-2.5 py-2 rounded-xl border border-black/[0.08] dark:border-white/[0.1] bg-white dark:bg-[#0D110E] text-[#141912] dark:text-white text-xs font-bold tabular-nums focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
                     />
-                    <span className="absolute right-2.5 top-1.5 text-[11px] text-slate-400 font-semibold">
+                    <span className="absolute right-2.5 top-2 text-[11px] text-[#6F766C] font-semibold">
                       {t.bdt}
                     </span>
                   </div>
@@ -656,7 +643,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       setStatusMessage({ type: 'success', text: t.fuelPriceUpdatedMsg });
                     }
                   }}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition active:scale-95"
+                  className="px-4 py-2 rounded-full bg-[#9AE62E] hover:bg-[#8CD825] text-[#141912] font-bold text-xs shadow-xs transition active:scale-95"
                 >
                   {t.saveEntry}
                 </button>
@@ -664,27 +651,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Section 3: Data Backup, Restore, Demo & Reset */}
-          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+          {/* Data Backup, Restore, Demo & Reset */}
+          <div className="space-y-2 pt-3 border-t border-black/[0.06] dark:border-white/[0.08]">
+            <span className="text-xs font-bold text-[#6F766C] dark:text-slate-400 uppercase tracking-wider block">
               {t.dataManagement}
             </span>
 
-            {/* Export and Import buttons */}
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 onClick={onExportBackup}
-                className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition active:scale-95"
+                className="flex items-center justify-center gap-2 p-3 min-h-[44px] rounded-2xl bg-[#F6F7F4] dark:bg-white/[0.05] hover:bg-black/5 dark:hover:bg-white/10 text-[#141912] dark:text-slate-200 text-xs font-bold transition active:scale-95"
               >
-                <Download className="w-4 h-4 text-emerald-500" />
+                <Download className="w-4 h-4 text-[#5C9E00] dark:text-[#A3EC38]" />
                 <span>{t.exportBackup}</span>
               </button>
 
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition active:scale-95"
+                className="flex items-center justify-center gap-2 p-3 min-h-[44px] rounded-2xl bg-[#F6F7F4] dark:bg-white/[0.05] hover:bg-black/5 dark:hover:bg-white/10 text-[#141912] dark:text-slate-200 text-xs font-bold transition active:scale-95"
               >
-                <Upload className="w-4 h-4 text-blue-500" />
+                <Upload className="w-4 h-4 text-sky-500" />
                 <span>{t.importBackup}</span>
               </button>
               <input
@@ -696,7 +682,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               />
             </div>
 
-            {/* Load / Clear Sample Demo Data */}
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => {
@@ -715,9 +700,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     },
                   });
                 }}
-                className="flex items-center justify-center gap-1.5 p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition"
+                className="flex items-center justify-center gap-1.5 p-3 min-h-[44px] rounded-2xl bg-[#EEF9DA] dark:bg-[#1E2B14] hover:bg-[#D7F49A] text-[#141912] dark:text-[#ECFACB] text-xs font-bold transition"
               >
-                <Database className="w-3.5 h-3.5" />
+                <Database className="w-3.5 h-3.5 text-[#5C9E00] dark:text-[#A3EC38]" />
                 <span>{t.loadDemoData}</span>
               </button>
 
@@ -726,14 +711,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onClearDemoData();
                   setStatusMessage({ type: 'success', text: t.demoRecordsCleared });
                 }}
-                className="flex items-center justify-center gap-1.5 p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-bold transition"
+                className="flex items-center justify-center gap-1.5 p-3 min-h-[44px] rounded-2xl bg-[#FFF6E5] dark:bg-amber-950/40 hover:bg-amber-100 text-amber-800 dark:text-amber-300 text-xs font-bold transition"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>{t.clearDemoRecords}</span>
               </button>
             </div>
 
-            {/* Clear All Data */}
             <button
               onClick={() => {
                 setConfirmDialog({
@@ -751,7 +735,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   },
                 });
               }}
-              className="w-full flex items-center justify-center gap-2 p-3 rounded-2xl bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-700 dark:text-red-300 text-xs font-bold transition"
+              className="w-full flex items-center justify-center gap-2 p-3 min-h-[44px] rounded-2xl bg-[#FFEEEE] dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 text-xs font-bold transition"
             >
               <Trash2 className="w-4 h-4" />
               <span>{t.clearAllData}</span>
@@ -760,7 +744,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
       </div>
 
-      {/* In-App Confirmation Dialog */}
       {confirmDialog && (
         <ConfirmDialog
           isOpen={confirmDialog.isOpen}
