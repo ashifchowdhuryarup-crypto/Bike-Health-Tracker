@@ -239,3 +239,53 @@ test('Zero-GPS ride finalizes safely without fabricating coordinates and enforce
   assert.equal(mismatch.saved, false);
   assert.equal(mismatch.updatedOdometer, 5000);
 });
+
+test('Multipath flyover zig-zag V-spikes and impossible acceleration spikes are rolled back cleanly', () => {
+  const bike = makeBike(8967);
+  const baseMs = Date.UTC(2026, 10, 18, 14, 30, 0);
+  let session = createActiveRideSession(bike, null, new Date(baseMs).toISOString());
+
+  // p0: Start at Banani road
+  session = processIncomingGpsPoint(session, {
+    lat: 23.793,
+    lng: 90.405,
+    timestamp: baseMs,
+    accuracyM: 20,
+    speedKmh: 15,
+  }).session;
+
+  // Coarse burst under flyover claiming 85 km/h with 70m accuracy -> rejected immediately
+  const coarseBurst = processIncomingGpsPoint(session, {
+    lat: 23.7945, // ~167m north
+    lng: 90.405,
+    timestamp: baseMs + 6000, // ~100 km/h
+    accuracyM: 70,
+  });
+  assert.equal(coarseBurst.accepted, false);
+  assert.equal(coarseBurst.reason, 'gps_jump');
+
+  // p1: Multipath reflection 90m off-route sideways (25m reported accuracy, 55 km/h leg)
+  session = processIncomingGpsPoint(session, {
+    lat: 23.7938,
+    lng: 90.405,
+    timestamp: baseMs + 6000,
+    accuracyM: 25,
+    speedKmh: 55,
+  }).session;
+  assert.equal(session.route.length, 2);
+
+  // p2: Next fix 4s later snaps back onto real road 30m west of p0 (acute ~160deg reversal)
+  const snapBack = processIncomingGpsPoint(session, {
+    lat: 23.793,
+    lng: 90.4047, // ~30m west of p0
+    timestamp: baseMs + 10_000,
+    accuracyM: 18,
+    speedKmh: 14,
+  });
+
+  assert.equal(snapBack.accepted, true);
+  // Spike p1 was rolled back: route should only have [p0, p2], distance ~0.03 km (NOT 0.09 + 0.095 = 0.185 km!)
+  assert.equal(snapBack.session.route.length, 2);
+  assert.ok(snapBack.session.distanceKm < 0.05, `Expected rolled-back distance ~0.03 km, got ${snapBack.session.distanceKm}`);
+  assert.ok(snapBack.session.maxSpeedKmh < 30, `Expected spike maxSpeed rolled back, got ${snapBack.session.maxSpeedKmh}`);
+});

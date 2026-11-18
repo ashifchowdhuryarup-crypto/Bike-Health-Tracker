@@ -328,11 +328,11 @@ export function calculateMonthlyReports(
       } else {
         totalKm = monthGpsKm;
         avgMileage = 0;
-        costPerKm = totalKm > 0 && totalCost > 0 ? Math.round((totalCost / totalKm) * 100) / 100 : 0;
+        costPerKm = 0;
       }
     } else if (monthGpsKm > 0) {
       totalKm = monthGpsKm;
-      costPerKm = totalKm > 0 && serviceCost > 0 ? Math.round((serviceCost / totalKm) * 100) / 100 : 0;
+      costPerKm = 0;
     }
 
     reports.push({
@@ -374,7 +374,7 @@ export function calculateLifetimeStats(
       totalServiceCost,
       totalCost: totalServiceCost,
       avgMileage: 0,
-      costPerKm: totalGpsRideKm > 0 && totalServiceCost > 0 ? Math.round((totalServiceCost / totalGpsRideKm) * 100) / 100 : 0,
+      costPerKm: 0,
     };
   }
 
@@ -424,7 +424,7 @@ export function calculateLifetimeStats(
     } else {
       totalDistance = totalGpsRideKm;
       avgMileage = 0;
-      costPerKm = totalDistance > 0 && totalCost > 0 ? Math.round((totalCost / totalDistance) * 100) / 100 : 0;
+      costPerKm = 0;
     }
   }
 

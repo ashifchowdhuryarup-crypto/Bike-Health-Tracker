@@ -3,7 +3,7 @@ import { getLocalDateString } from './i18n';
 
 export const INITIAL_DEFAULT_ODOMETER = 8943;
 export const MAX_ACCEPTABLE_ACCURACY_M = 120; // Allow realistic mobile/Android Fused GPS while rejecting coarse cell-tower fixes (>120m)
-export const MIN_STEP_KM = 0.005; // 5 meters deadband to reject stationary GPS drift
+export const MIN_STEP_KM = 0.012; // 12 meters deadband to eliminate slow-traffic GPS zig-zag drift
 export const MAX_REALISTIC_SPEED_KMH = 180; // Reject impossible GPS teleport jumps
 
 export function roundTo2(value: number): number {
@@ -46,6 +46,35 @@ export function haversineDistanceKm(
   const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
   const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
   return R * c;
+}
+
+/**
+ * Computes cosine of turning angle between segments (p0 -> p1) and (p1 -> p2).
+ * Values near -1 represent an acute ~180° back-and-forth reversal (multipath spike).
+ */
+function computeTurningCosine(
+  p0: { lat: number; lng: number },
+  p1: { lat: number; lng: number },
+  p2: { lat: number; lng: number }
+): number {
+  const cosLat = Math.max(0.2, Math.cos((p1.lat * Math.PI) / 180));
+  const v1x = (p1.lng - p0.lng) * cosLat;
+  const v1y = p1.lat - p0.lat;
+  const v2x = (p2.lng - p1.lng) * cosLat;
+  const v2y = p2.lat - p1.lat;
+  const mag1 = Math.hypot(v1x, v1y);
+  const mag2 = Math.hypot(v2x, v2y);
+  if (mag1 === 0 || mag2 === 0) return 1;
+  return (v1x * v2x + v1y * v2y) / (mag1 * mag2);
+}
+
+function getEffectiveDeadbandKm(accA?: number, accB?: number): number {
+  const a = accA !== undefined && Number.isFinite(accA) ? accA : 0;
+  const b = accB !== undefined && Number.isFinite(accB) ? accB : 0;
+  const worstAccM = Math.max(a, b);
+  return worstAccM > 30
+    ? Math.max(MIN_STEP_KM, Math.min(0.06, (worstAccM * 0.65) / 1000))
+    : MIN_STEP_KM;
 }
 
 /**
@@ -162,11 +191,111 @@ export function processIncomingGpsPoint(
     return { session, accepted: false, reason: 'gps_jump', addedKm: 0 };
   }
 
-  // Adaptive stationary deadband: 5m for crisp GPS (<= 40m accuracy), scaling up to ~30m for coarse urban fixes
-  const effectiveDeadbandKm =
-    incoming.accuracyM !== undefined && Number.isFinite(incoming.accuracyM) && incoming.accuracyM > 40
-      ? Math.max(MIN_STEP_KM, Math.min(0.03, (incoming.accuracyM / 1000) * 0.35))
-      : MIN_STEP_KM;
+  // Reject coarse-accuracy high-speed bursts (common under flyovers/buildings)
+  if (
+    incoming.accuracyM !== undefined &&
+    Number.isFinite(incoming.accuracyM) &&
+    incoming.accuracyM > 45 &&
+    deltaMs < 15000 &&
+    impliedSpeedKmh > 65
+  ) {
+    return { session, accepted: false, reason: 'gps_jump', addedKm: 0 };
+  }
+
+  // Reject physically impossible instantaneous motorcycle acceleration spikes (e.g. 10 -> 113 km/h in <6s)
+  if (deltaMs < 6000 && impliedSpeedKmh > 95 && (prev.speedKmh ?? 0) < 35) {
+    return { session, accepted: false, reason: 'gps_jump', addedKm: 0 };
+  }
+
+  // Detect & roll back acute back-and-forth multipath V-spikes (p0 -> spike p1 -> snap back p2)
+  if (session.route.length >= 2) {
+    const p0 = session.route[session.route.length - 2];
+    const p1 = session.route[session.route.length - 1];
+    const d01 = haversineDistanceKm(p0, p1);
+    const d12 = deltaKm;
+    const d02 = haversineDistanceKm(p0, incoming);
+    const span02Ms = incoming.timestamp - p0.timestamp;
+    const span01Ms = p1.timestamp - p0.timestamp;
+    const speed01 = span01Ms > 0 ? d01 / (span01Ms / 3_600_000) : 0;
+    const cosAngle = computeTurningCosine(p0, p1, incoming);
+
+    const isMultipathSpike =
+      span02Ms > 0 &&
+      span02Ms <= 16_000 &&
+      d01 >= 0.025 &&
+      d12 >= 0.025 &&
+      cosAngle < -0.45 &&
+      d02 < (d01 + d12) * 0.55 &&
+      (speed01 > 28 ||
+        impliedSpeedKmh > 28 ||
+        (p1.accuracyM ?? 0) > 25 ||
+        (incoming.accuracyM ?? 0) > 25);
+
+    if (isMultipathSpike) {
+      const cleanedRoute = session.route.slice(0, -1);
+      const baseDistance = Math.max(0, session.distanceKm - d01);
+      const cleanedMaxSpeed = cleanedRoute.reduce(
+        (m, pt) => Math.max(m, pt.speedKmh ?? 0),
+        0
+      );
+      const directDeadbandKm = getEffectiveDeadbandKm(p0.accuracyM, incoming.accuracyM);
+
+      if (d02 < directDeadbandKm) {
+        return {
+          session: {
+            ...session,
+            lastUpdatedAt: nowIso,
+            distanceKm: baseDistance,
+            currentSpeedKmh: 0,
+            maxSpeedKmh: roundTo1(cleanedMaxSpeed),
+            route: cleanedRoute,
+            lastAcceptedPoint: p0,
+          },
+          accepted: false,
+          reason: 'stationary_drift',
+          addedKm: 0,
+        };
+      }
+
+      const directHours = span02Ms / 3_600_000;
+      const directImpliedSpeed = directHours > 0 ? d02 / directHours : 0;
+      const hasReliableDirectSpeed =
+        incoming.speedKmh !== undefined &&
+        Number.isFinite(incoming.speedKmh) &&
+        incoming.speedKmh >= 0 &&
+        incoming.speedKmh <= MAX_REALISTIC_SPEED_KMH &&
+        (incoming.speedKmh > 0 || directImpliedSpeed <= 3);
+
+      const directSpeed = hasReliableDirectSpeed
+        ? roundTo1(incoming.speedKmh!)
+        : roundTo1(Math.min(MAX_REALISTIC_SPEED_KMH, directImpliedSpeed));
+
+      const sanitizedDirect: RidePoint = {
+        lat: incoming.lat,
+        lng: incoming.lng,
+        timestamp: incoming.timestamp,
+        accuracyM: incoming.accuracyM,
+        speedKmh: directSpeed,
+      };
+
+      return {
+        session: {
+          ...session,
+          lastUpdatedAt: nowIso,
+          distanceKm: baseDistance + d02,
+          currentSpeedKmh: directSpeed,
+          maxSpeedKmh: roundTo1(Math.max(cleanedMaxSpeed, directSpeed)),
+          route: [...cleanedRoute, sanitizedDirect],
+          lastAcceptedPoint: sanitizedDirect,
+        },
+        accepted: true,
+        addedKm: d02,
+      };
+    }
+  }
+
+  // Accuracy-proportional stationary deadband to filter scatter inside GPS error circle
+  const effectiveDeadbandKm = getEffectiveDeadbandKm(prev.accuracyM, incoming.accuracyM);
 
   if (deltaKm < effectiveDeadbandKm) {
     const shouldZeroSpeed = deltaMs >= 4000 || incoming.speedKmh === 0;

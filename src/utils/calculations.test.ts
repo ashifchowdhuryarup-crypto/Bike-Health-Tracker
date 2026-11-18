@@ -375,6 +375,61 @@ test('calculateMonthlyReports and calculateLifetimeStats incorporate GPS rideHis
 
   const lifetime = calculateLifetimeStats(bike, [], [], rides);
   assert.equal(lifetime.totalDistance, 12.5);
+  assert.equal(lifetime.costPerKm, 0, 'Cost per km must stay 0 when no fuel entries exist');
+});
+
+test('calculateMonthlyReports and calculateLifetimeStats do not divide historical service bills by short GPS rides when no fuel is logged', () => {
+  const bike: Bike = {
+    id: 'b_service_only',
+    name: 'Gixxer monoton',
+    model: '155cc',
+    initialOdometer: 8967,
+    currentOdometer: 8972,
+    createdAt: '2026-05-01',
+  };
+
+  const serviceLogs: ServiceLog[] = [
+    {
+      id: 'srv_sep',
+      bikeId: 'b_service_only',
+      serviceItemId: 'item_1',
+      serviceItemName: 'Master Service',
+      date: '2026-09-15',
+      odometer: 8500,
+      cost: 1650,
+    },
+  ];
+
+  const rides: RideRecord[] = [
+    {
+      id: 'ride_nov',
+      bikeId: 'b_service_only',
+      date: '2026-11-18',
+      startTime: '2026-11-18T14:29:00.000Z',
+      endTime: '2026-11-18T14:51:34.000Z',
+      distanceKm: 5.0,
+      durationSec: 1354,
+      avgSpeedKmh: 13.3,
+      maxSpeedKmh: 38,
+      startLocation: { lat: 23.793, lng: 90.405 },
+      endLocation: { lat: 23.818, lng: 90.397 },
+      route: [],
+      odometerBefore: 8967,
+      odometerAfter: 8972,
+      odometerApplied: true,
+      createdAt: '2026-11-18T14:51:34.000Z',
+    },
+  ];
+
+  const monthly = calculateMonthlyReports([], serviceLogs, bike, rides);
+  const nov = monthly.find((m) => m.monthKey === '2026-11');
+  assert.ok(nov);
+  assert.equal(nov.costPerKm, 0);
+
+  const lifetime = calculateLifetimeStats(bike, [], serviceLogs, rides);
+  assert.equal(lifetime.totalServiceCost, 1650);
+  assert.equal(lifetime.totalFuelCost, 0);
+  assert.equal(lifetime.costPerKm, 0, 'Must not show 330 BDT/km when user has logged zero fuel');
 });
 
 

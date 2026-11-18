@@ -319,15 +319,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               />
             </svg>
 
-            <div className="flex items-baseline gap-1 flex-wrap">
-              <span className="text-xl font-extrabold tabular-nums text-[#141912] dark:text-white leading-none">
-                {lifetime.costPerKm > 0
-                  ? formatCurrency(lifetime.costPerKm, language, numberFormat, 2)
-                  : '-'}
-              </span>
-              <span className="text-[11px] font-medium text-[#6F766C] dark:text-slate-400">
-                /{t.km}
-              </span>
+            <div>
+              <div className="flex items-baseline gap-1 flex-wrap">
+                <span className="text-xl font-extrabold tabular-nums text-[#141912] dark:text-white leading-none">
+                  {lifetime.costPerKm > 0
+                    ? formatCurrency(lifetime.costPerKm, language, numberFormat, 2)
+                    : '-'}
+                </span>
+                {lifetime.costPerKm > 0 && (
+                  <span className="text-[11px] font-medium text-[#6F766C] dark:text-slate-400">
+                    /{t.km}
+                  </span>
+                )}
+              </div>
+              {lifetime.costPerKm === 0 && (
+                <p className="text-[10px] font-medium text-[#6F766C] dark:text-slate-400 mt-1">
+                  {language === 'bn' ? 'ফুয়েল এন্ট্রি যোগ করলে দেখাবে' : 'Add fuel logs to calculate'}
+                </p>
+              )}
             </div>
           </div>
 
