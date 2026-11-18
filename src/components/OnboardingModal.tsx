@@ -22,7 +22,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   const [name, setName] = useState('');
   const [model, setModel] = useState('');
   const [regNumber, setRegNumber] = useState('');
-  const [initialOdo, setInitialOdo] = useState('');
+  const [initialOdo, setInitialOdo] = useState('8943');
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;

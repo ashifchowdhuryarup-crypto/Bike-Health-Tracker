@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ServiceItem, Bike, Language, NumberFormatType } from '../types';
-import { translations } from '../utils/i18n';
+import { translations, getLocalDateString } from '../utils/i18n';
 import { Wrench, X, AlertCircle } from 'lucide-react';
 
 interface AddEditServiceModalProps {
@@ -28,7 +28,7 @@ export const AddEditServiceModal: React.FC<AddEditServiceModalProps> = ({
   const [kmInterval, setKmInterval] = useState('2000');
   const [dayInterval, setDayInterval] = useState('');
   const [lastServiceKm, setLastServiceKm] = useState(bike.currentOdometer.toString());
-  const [lastServiceDate, setLastServiceDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [lastServiceDate, setLastServiceDate] = useState(() => getLocalDateString());
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export const AddEditServiceModal: React.FC<AddEditServiceModalProps> = ({
       setKmInterval('2000');
       setDayInterval('');
       setLastServiceKm(bike.currentOdometer.toString());
-      setLastServiceDate(new Date().toISOString().split('T')[0]);
+      setLastServiceDate(getLocalDateString());
     }
     setError(null);
   }, [editingItem, bike.currentOdometer, isOpen]);

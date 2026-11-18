@@ -1,4 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import {
+  APIProvider,
+  useApiLoadingStatus,
+  APILoadingStatus,
+} from '@vis.gl/react-google-maps';
 import {
   Bike,
   FuelEntry,
@@ -8,6 +13,7 @@ import {
   Language,
   NumberFormatType,
   FuelPriceSettings,
+  RideRecord,
 } from './types';
 import {
   initLocalStorageIfEmpty,
@@ -21,6 +27,7 @@ import {
   importBackupJson,
   clearAllStorageData,
   DEFAULT_FUEL_PRICES,
+  saveRideHistory,
 } from './utils/storage';
 import {
   calculateFuelMileages,
@@ -29,9 +36,15 @@ import {
   autoSyncServicesForOdometerChange,
   isFuelEntryAfterReset,
 } from './utils/calculations';
+import { getLocalDateString } from './utils/i18n';
+import { applyCompletedRideSafely } from './utils/rideTracking';
+import { useRideTracker } from './hooks/useRideTracker';
 import { Header } from './components/Header';
 import { Navigation } from './components/Navigation';
 import { HomeDashboard } from './components/HomeDashboard';
+import { MapPanelView } from './components/MapPanelView';
+import { RideHistoryView } from './components/RideHistoryView';
+import { OdometerView } from './components/OdometerView';
 import { FuelLogView } from './components/FuelLogView';
 import { ServiceReminderView } from './components/ServiceReminderView';
 import { ReportsView } from './components/ReportsView';
@@ -42,6 +55,21 @@ import { SettingsModal } from './components/SettingsModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { ResetOdometerModal } from './components/ResetOdometerModal';
 
+const MapsSdkErrorWatcher: React.FC<{
+  onSdkError: () => void;
+  onSdkReady: () => void;
+}> = ({ onSdkError, onSdkReady }) => {
+  const status = useApiLoadingStatus();
+  useEffect(() => {
+    if (status === APILoadingStatus.FAILED || status === APILoadingStatus.AUTH_FAILURE) {
+      onSdkError();
+    } else if (status === APILoadingStatus.LOADED) {
+      onSdkReady();
+    }
+  }, [status, onSdkError, onSdkReady]);
+  return null;
+};
+
 export default function App() {
   // 1. Initial State from Storage
   const [bikes, setBikes] = useState<Bike[]>([]);
@@ -49,6 +77,7 @@ export default function App() {
   const [fuelEntries, setFuelEntries] = useState<FuelEntry[]>([]);
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([]);
   const [serviceLogs, setServiceLogs] = useState<ServiceLog[]>([]);
+  const [rideHistory, setRideHistory] = useState<RideRecord[]>([]);
 
   // 2. Settings
   const [language, setLanguage] = useState<Language>('bn');
@@ -56,8 +85,12 @@ export default function App() {
   const [darkMode, setDarkMode] = useState<boolean>(false);
   const [fuelPrices, setFuelPrices] = useState<FuelPriceSettings>(DEFAULT_FUEL_PRICES);
 
-  // 3. Navigation & Modals
+  // 3. Navigation, Maps Quota & Modals
   const [currentTab, setCurrentTab] = useState<TabType>('home');
+  const [inspectedRide, setInspectedRide] = useState<RideRecord | null>(null);
+  const [hasQuotaError, setHasQuotaError] = useState(false);
+  const [sdkLoadFailed, setSdkLoadFailed] = useState(false);
+  const [mapsProviderKey, setMapsProviderKey] = useState(0);
   const [isAddFuelModalOpen, setIsAddFuelModalOpen] = useState(false);
   const [isMarkServiceModalOpen, setIsMarkServiceModalOpen] = useState(false);
   const [markServicePreselectId, setMarkServicePreselectId] = useState<string | undefined>(undefined);
@@ -67,6 +100,11 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isAddBikeModalOpen, setIsAddBikeModalOpen] = useState(false);
+
+  const bikesRef = useRef<Bike[]>([]);
+  useEffect(() => {
+    bikesRef.current = bikes;
+  }, [bikes]);
 
   // 4. Mount & Load Data
   useEffect(() => {
@@ -83,7 +121,7 @@ export default function App() {
     let loadedItems = initial.serviceItems;
     let bikesHealed = false;
     let itemsHealed = false;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
 
     // Auto-heal any uninitialized 0-km default service records on existing bikes above 500 km
     loadedBikes = loadedBikes.map((b) => {
@@ -121,10 +159,27 @@ export default function App() {
     setFuelEntries(initial.fuelEntries);
     setServiceItems(loadedItems);
     setServiceLogs(initial.serviceLogs);
+    setRideHistory(initial.rideHistory);
 
     if (loadedBikes.length === 0) {
       setIsOnboardingOpen(true);
     }
+
+    const handleQuotaExceeded = () => setHasQuotaError(true);
+    const handleNetworkOnline = () => {
+      setSdkLoadFailed((failed) => {
+        if (failed) {
+          setMapsProviderKey((k) => k + 1);
+        }
+        return false;
+      });
+    };
+    window.addEventListener('gmp-quota-exceeded', handleQuotaExceeded);
+    window.addEventListener('online', handleNetworkOnline);
+    return () => {
+      window.removeEventListener('gmp-quota-exceeded', handleQuotaExceeded);
+      window.removeEventListener('online', handleNetworkOnline);
+    };
   }, []);
 
   // Sync dark mode class on document
@@ -199,6 +254,11 @@ export default function App() {
     localStorage.setItem(STORAGE_KEYS.SERVICE_LOGS, JSON.stringify(logs));
   };
 
+  const persistRideHistory = (rides: RideRecord[]) => {
+    setRideHistory(rides);
+    saveRideHistory(rides);
+  };
+
   // Active Bike lookup
   const activeBike = useMemo(() => {
     return bikes.find((b) => b.id === activeBikeId) || bikes[0] || null;
@@ -219,6 +279,11 @@ export default function App() {
     if (!activeBike) return [];
     return serviceLogs.filter((s) => s.bikeId === activeBike.id);
   }, [serviceLogs, activeBike]);
+
+  const activeRideHistory = useMemo(() => {
+    if (!activeBike) return [];
+    return rideHistory.filter((r) => r.bikeId === activeBike.id);
+  }, [rideHistory, activeBike]);
 
   // Current calculated odometer
   const currentOdo = useMemo(() => {
@@ -252,12 +317,12 @@ export default function App() {
   // Monthly reports
   const monthlyReports = useMemo(() => {
     if (!activeBike) return [];
-    return calculateMonthlyReports(activeFuelEntries, activeServiceLogs, activeBike);
-  }, [activeFuelEntries, activeServiceLogs, activeBike]);
+    return calculateMonthlyReports(activeFuelEntries, activeServiceLogs, activeBike, activeRideHistory);
+  }, [activeFuelEntries, activeServiceLogs, activeBike, activeRideHistory]);
 
   // Current month's report
   const thisMonthReport = useMemo(() => {
-    const currentMonthKey = new Date().toISOString().substring(0, 7);
+    const currentMonthKey = getLocalDateString().substring(0, 7);
     return monthlyReports.find((r) => r.monthKey === currentMonthKey) || monthlyReports[0] || null;
   }, [monthlyReports]);
 
@@ -278,7 +343,7 @@ export default function App() {
     const defaultServices = createDefaultServiceItems(
       newId,
       newBike.initialOdometer,
-      new Date().toISOString().split('T')[0]
+      getLocalDateString()
     );
     saveServiceItems([...serviceItems, ...defaultServices]);
   };
@@ -297,6 +362,61 @@ export default function App() {
     }
   };
 
+  // --- Handlers: Completed GPS Ride -> Automatic Permanent Odometer & Service Sync ---
+  const handleRideCompleted = useCallback(
+    (completedRide: RideRecord) => {
+      const targetBike =
+        bikesRef.current.find((b) => b.id === completedRide.bikeId) || activeBike;
+      if (!targetBike) return;
+
+      const result = applyCompletedRideSafely(rideHistory, targetBike, completedRide);
+      if (!result.saved) return;
+
+      persistRideHistory(result.updatedRides);
+
+      if (result.updatedOdometer !== targetBike.currentOdometer) {
+        const todayStr = getLocalDateString();
+        const synced = autoSyncServicesForOdometerChange(
+          serviceItems,
+          targetBike,
+          targetBike.currentOdometer,
+          result.updatedOdometer,
+          serviceLogs,
+          todayStr,
+          false
+        );
+        if (synced.changed) {
+          saveServiceItems(synced.updatedItems);
+        }
+        handleUpdateBike(targetBike.id, {
+          currentOdometer: result.updatedOdometer,
+          initialOdometer: synced.updatedInitialOdo,
+        });
+      }
+    },
+    [activeBike, rideHistory, serviceItems, serviceLogs]
+  );
+
+  const rideTracker = useRideTracker({
+    activeBike,
+    bikes,
+    isMapTabActive: currentTab === 'map',
+    onRideCompleted: handleRideCompleted,
+  });
+
+  const handleDeleteRide = (rideId: string) => {
+    const updated = rideHistory.filter((r) => r.id !== rideId);
+    persistRideHistory(updated);
+    if (inspectedRide?.id === rideId) {
+      setInspectedRide(null);
+    }
+  };
+
+  const handleInspectRideOnMap = (ride: RideRecord) => {
+    setInspectedRide(ride);
+    setCurrentTab('map');
+  };
+
   // --- Handlers: Odometer Update with Automatic Service Sync ---
   const handleResetOdometer = (
     newOdometer: number,
@@ -307,7 +427,7 @@ export default function App() {
 
     const oldOdo = activeBike.currentOdometer;
     const nowIso = new Date().toISOString();
-    const todayStr = nowIso.split('T')[0];
+    const todayStr = getLocalDateString();
 
     // 1. Auto-sync service items with the new odometer
     const { updatedItems, updatedInitialOdo, changed } = autoSyncServicesForOdometerChange(
@@ -392,7 +512,7 @@ export default function App() {
 
     // Auto-sync bike odometer & any uninitialized 0-km services when new entry increases odometer
     if (entry.odometer > activeBike.currentOdometer) {
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getLocalDateString();
       const { updatedItems, updatedInitialOdo, changed } = autoSyncServicesForOdometerChange(
         serviceItems,
         activeBike,
@@ -427,17 +547,20 @@ export default function App() {
         relevantBikeEntries.length > 0
           ? Math.max(...relevantBikeEntries.map((f) => f.odometer))
           : activeBike.initialOdometer;
+      const bikeRides = rideHistory.filter((r) => r.bikeId === activeBike.id);
+      const maxRideOdo =
+        bikeRides.length > 0 ? Math.max(...bikeRides.map((r) => r.odometerAfter)) : 0;
 
       let targetOdo = activeBike.currentOdometer;
       if (activeBike.currentOdometer === oldEntry.odometer) {
-        // User edited the latest entry that controlled currentOdometer -> sync both upward & downward
-        targetOdo = Math.max(maxFuelOdo, activeBike.initialOdometer);
+        // User edited the latest entry that controlled currentOdometer -> sync while preserving GPS ride progress
+        targetOdo = Math.max(maxFuelOdo, maxRideOdo, activeBike.initialOdometer);
       } else if (updates.odometer > activeBike.currentOdometer) {
         targetOdo = updates.odometer;
       }
 
       if (targetOdo !== activeBike.currentOdometer) {
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getLocalDateString();
         const { updatedItems, updatedInitialOdo, changed } = autoSyncServicesForOdometerChange(
           serviceItems,
           activeBike,
@@ -478,10 +601,13 @@ export default function App() {
         remainingBikeFuels.length > 0 ? Math.max(...remainingBikeFuels.map((f) => f.odometer)) : 0;
       const maxLogOdo =
         activeServiceLogs.length > 0 ? Math.max(...activeServiceLogs.map((l) => l.odometer)) : 0;
-      const targetOdo = Math.max(maxFuelOdo, maxLogOdo, activeBike.initialOdometer);
+      const bikeRides = rideHistory.filter((r) => r.bikeId === activeBike.id);
+      const maxRideOdo =
+        bikeRides.length > 0 ? Math.max(...bikeRides.map((r) => r.odometerAfter)) : 0;
+      const targetOdo = Math.max(maxFuelOdo, maxLogOdo, maxRideOdo, activeBike.initialOdometer);
 
       if (targetOdo !== activeBike.currentOdometer) {
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getLocalDateString();
         const { updatedItems, updatedInitialOdo, changed } = autoSyncServicesForOdometerChange(
           serviceItems,
           activeBike,
@@ -585,7 +711,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `bike_tracker_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `bike_tracker_backup_${getLocalDateString()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -599,6 +725,7 @@ export default function App() {
       setFuelEntries(reloaded.fuelEntries);
       setServiceItems(reloaded.serviceItems);
       setServiceLogs(reloaded.serviceLogs);
+      setRideHistory(reloaded.rideHistory);
     }
     return ok;
   };
@@ -620,6 +747,7 @@ export default function App() {
     setFuelEntries(updated.fuelEntries);
     setServiceItems(updated.serviceItems);
     setServiceLogs(updated.serviceLogs);
+    setRideHistory(updated.rideHistory);
     if (updated.bikes.length === 0) {
       setIsOnboardingOpen(true);
     }
@@ -627,23 +755,51 @@ export default function App() {
 
   const handleClearAllData = () => {
     clearAllStorageData();
+    rideTracker.resetRideTracker();
     setBikes([]);
     setActiveBikeId(null);
     setFuelEntries([]);
     setServiceItems([]);
     setServiceLogs([]);
+    setRideHistory([]);
+    setInspectedRide(null);
     setIsOnboardingOpen(true);
   };
 
-  return (
+  const mapsApiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined) || '';
+
+  const appShell = (
     <div className="min-h-screen bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-[#F4F6F0] flex flex-col">
+      {hasQuotaError && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs md:text-sm text-center sticky top-0 z-50 shadow-sm">
+          <span>
+            Google Maps Platform quota reached. If you are the app owner, visit{' '}
+            <a
+              href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold text-amber-950 hover:text-amber-800"
+            >
+              maps developer site
+            </a>{' '}
+            for instructions to update your account.
+          </span>
+        </div>
+      )}
+
       {/* Sticky Header */}
       <Header
         bikes={bikes}
         activeBike={activeBike}
         onSelectBike={saveActiveBikeId}
-        onOpenAddBike={() => setIsSettingsOpen(true)}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenAddBike={() => {
+          setIsAddBikeModalOpen(true);
+          setIsSettingsOpen(true);
+        }}
+        onOpenSettings={() => {
+          setIsAddBikeModalOpen(false);
+          setIsSettingsOpen(true);
+        }}
         language={language}
         onToggleLanguage={() => updateSettings({ language: language === 'bn' ? 'en' : 'bn' })}
         numberFormat={numberFormat}
@@ -655,20 +811,73 @@ export default function App() {
       <div className="w-full max-w-md md:max-w-3xl lg:max-w-5xl mx-auto flex-1 flex flex-col relative">
         {/* Main Content View based on Tab */}
         <main className="flex-1 px-4 md:px-6 pt-2 pb-24">
+
           {activeBike && currentTab === 'home' && (
             <HomeDashboard
               bike={activeBike}
               fuelEntries={activeFuelEntries}
-              calculatedMileages={calculatedMileages}
+              rideHistory={activeRideHistory}
+              activeRide={rideTracker.activeRide}
               urgentServices={serviceUrgentList}
               thisMonthReport={thisMonthReport}
-              onOpenAddFuel={() => setIsAddFuelModalOpen(true)}
               onOpenMarkService={(itemId) => {
                 setMarkServicePreselectId(itemId);
                 setIsMarkServiceModalOpen(true);
               }}
               onOpenResetOdo={() => setIsResetOdoModalOpen(true)}
               onNavigateToTab={setCurrentTab}
+              language={language}
+              numberFormat={numberFormat}
+            />
+          )}
+
+          {activeBike && currentTab === 'map' && (
+            <MapPanelView
+              bike={activeBike}
+              activeRide={rideTracker.activeRide}
+              currentPosition={rideTracker.currentPosition}
+              elapsedSeconds={rideTracker.elapsedSeconds}
+              gpsStatus={rideTracker.gpsStatus}
+              gpsError={rideTracker.gpsError}
+              isOnline={rideTracker.isOnline}
+              wasRecovered={rideTracker.wasRecovered}
+              hasQuotaError={hasQuotaError}
+              sdkLoadFailed={sdkLoadFailed}
+              lastSavedRide={rideTracker.lastSavedRide}
+              inspectedRide={inspectedRide}
+              onClearInspectedRide={() => setInspectedRide(null)}
+              onStartRide={rideTracker.startRide}
+              onStopAndSaveRide={() => {
+                rideTracker.stopAndSaveRide();
+              }}
+              onRequestGpsRetry={rideTracker.requestGpsRetry}
+              onDismissRecoveredBanner={rideTracker.dismissRecoveredBanner}
+              onClearLastSavedRide={rideTracker.clearLastSavedRide}
+              language={language}
+              numberFormat={numberFormat}
+              darkMode={darkMode}
+            />
+          )}
+
+          {activeBike && currentTab === 'rides' && (
+            <RideHistoryView
+              rides={activeRideHistory}
+              onInspectRideOnMap={handleInspectRideOnMap}
+              onDeleteRide={handleDeleteRide}
+              onGoToMap={() => setCurrentTab('map')}
+              language={language}
+              numberFormat={numberFormat}
+            />
+          )}
+
+          {activeBike && currentTab === 'odometer' && (
+            <OdometerView
+              bike={activeBike}
+              rides={activeRideHistory}
+              fuelEntries={activeFuelEntries}
+              onOpenResetOdo={() => setIsResetOdoModalOpen(true)}
+              onGoToMap={() => setCurrentTab('map')}
+              onInspectRideOnMap={handleInspectRideOnMap}
               language={language}
               numberFormat={numberFormat}
             />
@@ -718,6 +927,7 @@ export default function App() {
               bike={activeBike}
               fuelEntries={activeFuelEntries}
               serviceLogs={activeServiceLogs}
+              rideHistory={activeRideHistory}
               calculatedMileages={calculatedMileages}
               monthlyReports={monthlyReports}
               language={language}
@@ -729,11 +939,16 @@ export default function App() {
         {/* Bottom Tab Navigation */}
         <Navigation
           currentTab={currentTab}
-          onSelectTab={setCurrentTab}
+          onSelectTab={(tab) => {
+            if (tab !== 'map') setInspectedRide(null);
+            setCurrentTab(tab);
+          }}
           onOpenAddFuel={() => setIsAddFuelModalOpen(true)}
           language={language}
+          numberFormat={numberFormat}
           urgentServiceCount={urgentCount}
           hasOverdueService={hasOverdueService}
+          isRideActive={rideTracker.activeRide !== null}
         />
 
         {/* Modals */}
@@ -793,7 +1008,11 @@ export default function App() {
 
         <SettingsModal
           isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
+          onClose={() => {
+            setIsSettingsOpen(false);
+            setIsAddBikeModalOpen(false);
+          }}
+          defaultOpenAddBike={isAddBikeModalOpen}
           bikes={bikes}
           activeBike={activeBike}
           onSelectBike={saveActiveBikeId}
@@ -828,5 +1047,26 @@ export default function App() {
         />
       </div>
     </div>
+  );
+
+  if (!mapsApiKey) {
+    return appShell;
+  }
+
+  return (
+    <APIProvider
+      key={mapsProviderKey}
+      apiKey={mapsApiKey}
+      language={language === 'bn' ? 'bn' : 'en'}
+      region="BD"
+      libraries={['marker', 'core']}
+      onError={() => setSdkLoadFailed(true)}
+    >
+      <MapsSdkErrorWatcher
+        onSdkError={() => setSdkLoadFailed(true)}
+        onSdkReady={() => setSdkLoadFailed(false)}
+      />
+      {appShell}
+    </APIProvider>
   );
 }

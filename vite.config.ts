@@ -17,8 +17,8 @@ export default defineConfig(() => {
           name: 'Bike Tracker - বাইক ট্র্যাকার',
           short_name: 'BikeTracker',
           description: 'মোটরসাইকেলের ফুয়েল খরচ, মাইলেজ ও সার্ভিস রিমাইন্ডার ট্র্যাকিং অ্যাপ',
-          theme_color: '#059669',
-          background_color: '#0f172a',
+          theme_color: '#9AE62E',
+          background_color: '#0D110E',
           display: 'standalone',
           orientation: 'portrait',
           start_url: '/',
@@ -37,7 +37,7 @@ export default defineConfig(() => {
               purpose: 'any',
             },
             {
-              src: '/pwa-maskable-512x512.png',
+              src: '/pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
@@ -46,6 +46,11 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/^\/api\//],
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          skipWaiting: true,
         },
         devOptions: {
           enabled: false,

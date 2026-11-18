@@ -1,4 +1,16 @@
-import { Bike, FuelEntry, ServiceItem, ServiceLog, Language, NumberFormatType, FuelPriceSettings } from '../types';
+import {
+  Bike,
+  FuelEntry,
+  ServiceItem,
+  ServiceLog,
+  Language,
+  NumberFormatType,
+  FuelPriceSettings,
+  RideRecord,
+  ActiveRideSession,
+} from '../types';
+import { INITIAL_DEFAULT_ODOMETER } from './rideTracking';
+import { getLocalDateString } from './i18n';
 
 export interface AppSettings {
   language: Language;
@@ -18,6 +30,8 @@ export const STORAGE_KEYS = {
   FUEL_ENTRIES: 'bike_tracker_fuel_entries',
   SERVICE_ITEMS: 'bike_tracker_service_items',
   SERVICE_LOGS: 'bike_tracker_service_logs',
+  RIDE_HISTORY: 'bike_tracker_ride_history_v1',
+  ACTIVE_RIDE: 'bike_tracker_active_ride_v1',
   SETTINGS: 'bike_tracker_settings',
   INITIALIZED: 'bike_tracker_initialized_v1',
 };
@@ -103,8 +117,7 @@ export function saveSettings(settings: AppSettings): void {
 
 export function getSampleDemoData() {
   const bikeId = 'demo_bike_yamaha_1';
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = getLocalDateString();
 
   const bike: Bike = {
     id: bikeId,
@@ -343,33 +356,114 @@ export function clearDemoData(): void {
   }
 }
 
+export function loadRideHistory(): RideRecord[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.RIDE_HISTORY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error('Error loading ride history', e);
+    return [];
+  }
+}
+
+export function saveRideHistory(rides: RideRecord[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.RIDE_HISTORY, JSON.stringify(rides));
+  } catch (e) {
+    console.error('Error saving ride history', e);
+  }
+}
+
+export function loadActiveRideSession(): ActiveRideSession | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ACTIVE_RIDE);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.sessionId && parsed.bikeId && parsed.startTime) {
+      return parsed as ActiveRideSession;
+    }
+    return null;
+  } catch (e) {
+    console.error('Error loading active ride session', e);
+    return null;
+  }
+}
+
+export function saveActiveRideSession(session: ActiveRideSession | null): void {
+  try {
+    if (!session) {
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_RIDE);
+    } else {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_RIDE, JSON.stringify(session));
+    }
+  } catch (e) {
+    console.error('Error saving active ride session', e);
+  }
+}
+
 export function initLocalStorageIfEmpty(): {
   bikes: Bike[];
   activeBikeId: string | null;
   fuelEntries: FuelEntry[];
   serviceItems: ServiceItem[];
   serviceLogs: ServiceLog[];
+  rideHistory: RideRecord[];
 } {
   try {
-    // If demo data was previously loaded, purge it as requested
     const rawBikes = localStorage.getItem(STORAGE_KEYS.BIKES);
     let bikes: Bike[] = rawBikes ? JSON.parse(rawBikes) : [];
 
-    // Filter out demo bike if present
+    // Filter out legacy sample demo bike if somehow present
     if (bikes.some((b) => b.id === 'demo_bike_yamaha_1')) {
       clearDemoData();
       const updatedRawBikes = localStorage.getItem(STORAGE_KEYS.BIKES);
       bikes = updatedRawBikes ? JSON.parse(updatedRawBikes) : [];
     }
 
+    // Fresh app initialization with 8,943 KM baseline without resetting existing user data
+    const hasClearedExplicitly = localStorage.getItem(STORAGE_KEYS.INITIALIZED) === 'cleared';
+    if (bikes.length === 0 && !hasClearedExplicitly) {
+      const todayStr = getLocalDateString();
+      const defaultBikeId = 'bike_primary_1';
+      const defaultBike: Bike = {
+        id: defaultBikeId,
+        name: 'আমার বাইক',
+        model: '150cc Motorcycle',
+        initialOdometer: INITIAL_DEFAULT_ODOMETER,
+        currentOdometer: INITIAL_DEFAULT_ODOMETER,
+        createdAt: todayStr,
+      };
+      const defaultServices = createDefaultServiceItems(
+        defaultBikeId,
+        INITIAL_DEFAULT_ODOMETER,
+        todayStr
+      );
+
+      localStorage.setItem(STORAGE_KEYS.BIKES, JSON.stringify([defaultBike]));
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_BIKE_ID, defaultBikeId);
+      localStorage.setItem(STORAGE_KEYS.SERVICE_ITEMS, JSON.stringify(defaultServices));
+      localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
+
+      return {
+        bikes: [defaultBike],
+        activeBikeId: defaultBikeId,
+        fuelEntries: [],
+        serviceItems: defaultServices,
+        serviceLogs: [],
+        rideHistory: loadRideHistory(),
+      };
+    }
+
     if (bikes.length === 0) {
-      // Clean slate - no demo records! User will see onboarding for their own bike
       return {
         bikes: [],
         activeBikeId: null,
         fuelEntries: [],
         serviceItems: [],
         serviceLogs: [],
+        rideHistory: loadRideHistory(),
       };
     }
 
@@ -377,6 +471,7 @@ export function initLocalStorageIfEmpty(): {
     const fuelEntries: FuelEntry[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FUEL_ENTRIES) || '[]');
     const serviceItems: ServiceItem[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.SERVICE_ITEMS) || '[]');
     const serviceLogs: ServiceLog[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.SERVICE_LOGS) || '[]');
+    const rideHistory = loadRideHistory();
 
     return {
       bikes,
@@ -384,6 +479,7 @@ export function initLocalStorageIfEmpty(): {
       fuelEntries,
       serviceItems,
       serviceLogs,
+      rideHistory,
     };
   } catch (err) {
     console.error('Failed to init storage', err);
@@ -393,19 +489,21 @@ export function initLocalStorageIfEmpty(): {
       fuelEntries: [],
       serviceItems: [],
       serviceLogs: [],
+      rideHistory: [],
     };
   }
 }
 
 export function exportBackupJson(): string {
   const data = {
-    version: '1.0',
+    version: '1.1',
     exportDate: new Date().toISOString(),
     bikes: JSON.parse(localStorage.getItem(STORAGE_KEYS.BIKES) || '[]'),
     activeBikeId: localStorage.getItem(STORAGE_KEYS.ACTIVE_BIKE_ID),
     fuelEntries: JSON.parse(localStorage.getItem(STORAGE_KEYS.FUEL_ENTRIES) || '[]'),
     serviceItems: JSON.parse(localStorage.getItem(STORAGE_KEYS.SERVICE_ITEMS) || '[]'),
     serviceLogs: JSON.parse(localStorage.getItem(STORAGE_KEYS.SERVICE_LOGS) || '[]'),
+    rideHistory: JSON.parse(localStorage.getItem(STORAGE_KEYS.RIDE_HISTORY) || '[]'),
     settings: JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{}'),
   };
   return JSON.stringify(data, null, 2);
@@ -422,7 +520,9 @@ export function importBackupJson(jsonString: string): boolean {
     if (Array.isArray(data.fuelEntries)) localStorage.setItem(STORAGE_KEYS.FUEL_ENTRIES, JSON.stringify(data.fuelEntries));
     if (Array.isArray(data.serviceItems)) localStorage.setItem(STORAGE_KEYS.SERVICE_ITEMS, JSON.stringify(data.serviceItems));
     if (Array.isArray(data.serviceLogs)) localStorage.setItem(STORAGE_KEYS.SERVICE_LOGS, JSON.stringify(data.serviceLogs));
+    if (Array.isArray(data.rideHistory)) localStorage.setItem(STORAGE_KEYS.RIDE_HISTORY, JSON.stringify(data.rideHistory));
     if (data.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(data.settings));
+    localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
     return true;
   } catch (e) {
     console.error('Import failed', e);
@@ -436,4 +536,8 @@ export function clearAllStorageData(): void {
   localStorage.removeItem(STORAGE_KEYS.FUEL_ENTRIES);
   localStorage.removeItem(STORAGE_KEYS.SERVICE_ITEMS);
   localStorage.removeItem(STORAGE_KEYS.SERVICE_LOGS);
+  localStorage.removeItem(STORAGE_KEYS.RIDE_HISTORY);
+  localStorage.removeItem(STORAGE_KEYS.ACTIVE_RIDE);
+  localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'cleared');
 }
+

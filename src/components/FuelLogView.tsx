@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FuelEntry, Bike, Language, NumberFormatType, FuelPriceSettings } from '../types';
-import { translations, formatNumber, formatCurrency, formatDate } from '../utils/i18n';
+import { translations, formatNumber, formatCurrency, formatDate, formatOdometer, getLocalDateString } from '../utils/i18n';
 import { isFuelEntryAfterReset } from '../utils/calculations';
 import { ConfirmDialog } from './ConfirmDialog';
 import {
@@ -45,7 +45,7 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
   const [entryToDelete, setEntryToDelete] = useState<FuelEntry | null>(null);
 
   // Form State
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => getLocalDateString());
   const [odometer, setOdometer] = useState<string>('');
   const [fuelType, setFuelType] = useState<'Octane' | 'Petrol'>('Octane');
   const [unitPrice, setUnitPrice] = useState<string>(
@@ -69,7 +69,7 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
   );
 
   const resetForm = () => {
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(getLocalDateString());
     setOdometer('');
     setLitres('');
     setTotalPrice('');
@@ -85,7 +85,7 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
 
   const handleOpenAdd = () => {
     resetForm();
-    setOdometer((maxOdo + 150).toString());
+    setOdometer((Math.round((maxOdo + 150) * 100) / 100).toString());
     setUnitPrice((fuelPrices?.octane || 165).toString());
     setIsFormOpen(true);
   };
@@ -333,7 +333,7 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
                 </label>
                 <span className="text-[11px] text-[#6F766C] dark:text-slate-400 tabular-nums">
                   {language === 'bn' ? 'আগের ওডোমিটার:' : 'Prev:'}{' '}
-                  {formatNumber(maxOdo, language, numberFormat)} {t.km}
+                  {formatOdometer(maxOdo, language, numberFormat)} {t.km}
                 </span>
               </div>
               <div className="relative">
@@ -341,7 +341,7 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
                   type="number"
                   step="any"
                   required
-                  placeholder={`যেমন: ${maxOdo + 100}`}
+                  placeholder={`e.g. ${Math.round((maxOdo + 100) * 100) / 100}`}
                   value={odometer}
                   onChange={(e) => setOdometer(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-2xl border border-black/[0.08] dark:border-white/[0.1] bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-white text-sm font-bold tabular-nums focus:ring-2 focus:ring-[#9AE62E] focus:outline-none"
@@ -401,8 +401,11 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
                   <span>{t.autoCalculatedHint}:</span>
                 </span>
                 <span className="font-bold text-[#141912] dark:text-white">
-                  {litres} {t.litres} × ৳{unitPrice} ={' '}
-                  <span className="text-[#5C9E00] dark:text-[#A3EC38]">৳{totalPrice}</span>
+                  {formatNumber(parseFloat(litres), language, numberFormat, 2)} {t.litres} ×{' '}
+                  {formatCurrency(parseFloat(unitPrice), language, numberFormat, 1)} ={' '}
+                  <span className="text-[#5C9E00] dark:text-[#A3EC38]">
+                    {formatCurrency(parseFloat(totalPrice) || 0, language, numberFormat)}
+                  </span>
                 </span>
               </div>
             )}
@@ -497,7 +500,7 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-base font-extrabold tabular-nums text-[#141912] dark:text-white">
-                          {formatNumber(entry.odometer, language, numberFormat)} {t.km}
+                          {formatOdometer(entry.odometer, language, numberFormat)} {t.km}
                         </span>
                         <span className="text-[#9EA69B]">·</span>
                         <span
@@ -589,8 +592,8 @@ export const FuelLogView: React.FC<FuelLogViewProps> = ({
         message={
           entryToDelete
             ? language === 'bn'
-              ? `${formatNumber(entryToDelete.odometer, language, numberFormat)} কিমি এর ফুয়েল এন্ট্রিটি কি মুছে ফেলতে চান?`
-              : `Are you sure you want to delete the fuel entry at ${entryToDelete.odometer} km?`
+              ? `${formatOdometer(entryToDelete.odometer, language, numberFormat)} কিমি এর ফুয়েল এন্ট্রিটি কি মুছে ফেলতে চান?`
+              : `Are you sure you want to delete the fuel entry at ${formatOdometer(entryToDelete.odometer, language, numberFormat)} km?`
             : ''
         }
         confirmText={translations[language].delete}

@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Bike, Language, NumberFormatType, FuelPriceSettings } from '../types';
-import { translations } from '../utils/i18n';
+import { translations, formatOdometer } from '../utils/i18n';
 import { ConfirmDialog } from './ConfirmDialog';
 import {
   X,
@@ -25,6 +25,7 @@ import { usePWAInstall } from '../utils/usePWAInstall';
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  defaultOpenAddBike?: boolean;
   bikes: Bike[];
   activeBike: Bike | null;
   onSelectBike: (bikeId: string) => void;
@@ -50,6 +51,7 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
+  defaultOpenAddBike = false,
   bikes,
   activeBike,
   onSelectBike,
@@ -102,6 +104,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [newBikeModel, setNewBikeModel] = useState('');
   const [newBikeReg, setNewBikeReg] = useState('');
   const [newBikeOdo, setNewBikeOdo] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setStatusMessage(null);
+      setOctanePriceInput((fuelPrices?.octane || 165).toString());
+      setPetrolPriceInput((fuelPrices?.petrol || 155).toString());
+      setIsEditingBike(false);
+      setIsAddingBike(Boolean(defaultOpenAddBike));
+      setBikeName(activeBike?.name || '');
+      setBikeModel(activeBike?.model || '');
+      setBikeReg(activeBike?.registrationNumber || '');
+      setBikeInitialOdo(activeBike?.initialOdometer.toString() || '0');
+    }
+  }, [isOpen, fuelPrices, activeBike, defaultOpenAddBike]);
 
   if (!isOpen) return null;
 
@@ -295,7 +311,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     {activeBike?.registrationNumber || activeBike?.model}
                   </p>
                   <p className="text-xs font-bold text-[#5C9E00] dark:text-[#A3EC38] mt-1 tabular-nums">
-                    {t.currentOdo}: {activeBike ? activeBike.currentOdometer.toLocaleString() : 0} {t.km}
+                    {t.currentOdo}: {activeBike ? formatOdometer(activeBike.currentOdometer, language, numberFormat) : 0} {t.km}
                   </p>
                 </div>
                 {onOpenResetOdo && (

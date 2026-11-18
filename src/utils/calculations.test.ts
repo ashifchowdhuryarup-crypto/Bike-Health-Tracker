@@ -9,7 +9,7 @@ import {
   autoSyncServicesForOdometerChange,
   isFuelEntryAfterReset,
 } from './calculations';
-import { FuelEntry, ServiceItem, Bike, ServiceLog } from '../types';
+import { FuelEntry, ServiceItem, Bike, ServiceLog, RideRecord } from '../types';
 
 test('calculateFuelMileages computes mileage per full fill correctly', () => {
   const entries: FuelEntry[] = [
@@ -319,6 +319,62 @@ test('isFuelEntryAfterReset accurately distinguishes same-day entries before and
 
   assert.equal(isFuelEntryAfterReset(beforeReset, resetAt), false);
   assert.equal(isFuelEntryAfterReset(afterReset, resetAt), true);
+});
+
+test('calculateServiceUrgency handles fractional GPS odometer cleanly without float noise', () => {
+  const item: ServiceItem = {
+    id: 's_frac',
+    bikeId: 'b1',
+    nameEn: 'Engine Oil',
+    nameBn: 'ইঞ্জিন অয়েল',
+    kmInterval: 2500,
+    lastServiceKm: 8943,
+    lastServiceDate: '2026-11-16',
+  };
+  const urgency = calculateServiceUrgency(item, 8955.5, new Date('2026-11-16T12:00:00Z'));
+  assert.equal(urgency.kmRemaining, 2487.5);
+  assert.equal(urgency.status, 'green');
+  assert.ok(urgency.statusTextEn.includes('2487.5 km'));
+});
+
+test('calculateMonthlyReports and calculateLifetimeStats incorporate GPS rideHistory without fuel entries', () => {
+  const bike: Bike = {
+    id: 'b_gps',
+    name: 'GPS Bike',
+    model: '150cc',
+    initialOdometer: 8943,
+    currentOdometer: 8955.5,
+    createdAt: '2026-11-16',
+  };
+
+  const rides: RideRecord[] = [
+    {
+      id: 'ride_1',
+      bikeId: 'b_gps',
+      date: '2026-11-16',
+      startTime: '2026-11-16T08:00:00.000Z',
+      endTime: '2026-11-16T08:30:00.000Z',
+      distanceKm: 12.5,
+      durationSec: 1800,
+      avgSpeedKmh: 25,
+      maxSpeedKmh: 48,
+      startLocation: { lat: 23.75, lng: 90.39 },
+      endLocation: { lat: 23.81, lng: 90.41 },
+      route: [],
+      odometerBefore: 8943,
+      odometerAfter: 8955.5,
+      odometerApplied: true,
+      createdAt: '2026-11-16T08:30:00.000Z',
+    },
+  ];
+
+  const monthly = calculateMonthlyReports([], [], bike, rides);
+  assert.equal(monthly.length, 1);
+  assert.equal(monthly[0].monthKey, '2026-11');
+  assert.equal(monthly[0].totalKm, 12.5);
+
+  const lifetime = calculateLifetimeStats(bike, [], [], rides);
+  assert.equal(lifetime.totalDistance, 12.5);
 });
 
 

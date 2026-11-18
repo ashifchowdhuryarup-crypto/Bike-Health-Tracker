@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ServiceItem, Bike, Language, NumberFormatType } from '../types';
-import { translations } from '../utils/i18n';
+import { translations, formatNumber, getLocalDateString } from '../utils/i18n';
 import { Wrench, X, AlertCircle } from 'lucide-react';
 
 interface MarkServiceModalProps {
@@ -29,26 +29,29 @@ export const MarkServiceModal: React.FC<MarkServiceModalProps> = ({
   preselectedItemId,
   onConfirmServiceDone,
   language,
+  numberFormat,
 }) => {
   const t = translations[language];
 
   const [selectedItemId, setSelectedItemId] = useState<string>(
     preselectedItemId || (serviceItems[0]?.id ?? '')
   );
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => getLocalDateString());
   const [odometer, setOdometer] = useState<string>(bike.currentOdometer.toString());
   const [cost, setCost] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (preselectedItemId) {
-      setSelectedItemId(preselectedItemId);
-    } else if (serviceItems.length > 0 && !selectedItemId) {
-      setSelectedItemId(serviceItems[0].id);
+    if (isOpen) {
+      setSelectedItemId(preselectedItemId || (serviceItems[0]?.id ?? ''));
+      setDate(getLocalDateString());
+      setOdometer(bike.currentOdometer.toString());
+      setCost('');
+      setNotes('');
+      setError(null);
     }
-    setOdometer(bike.currentOdometer.toString());
-  }, [preselectedItemId, serviceItems, bike.currentOdometer]);
+  }, [isOpen, preselectedItemId, serviceItems, bike.currentOdometer]);
 
   if (!isOpen) return null;
 
@@ -122,7 +125,9 @@ export const MarkServiceModal: React.FC<MarkServiceModalProps> = ({
             >
               {serviceItems.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {language === 'bn' ? item.nameBn : item.nameEn} (প্রতি {item.kmInterval} কিমি)
+                  {language === 'bn' ? item.nameBn : item.nameEn} (
+                  {language === 'bn' ? 'প্রতি' : 'every'}{' '}
+                  {formatNumber(item.kmInterval, language, numberFormat)} {t.km})
                 </option>
               ))}
             </select>

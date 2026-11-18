@@ -1,6 +1,6 @@
 import React from 'react';
-import { TabType, Language } from '../types';
-import { translations } from '../utils/i18n';
+import { TabType, Language, NumberFormatType } from '../types';
+import { formatNumber, translations } from '../utils/i18n';
 import { Home, Fuel, Wrench, BarChart3, Plus } from 'lucide-react';
 
 interface NavigationProps {
@@ -8,8 +8,10 @@ interface NavigationProps {
   onSelectTab: (tab: TabType) => void;
   onOpenAddFuel: () => void;
   language: Language;
+  numberFormat?: NumberFormatType;
   urgentServiceCount: number;
   hasOverdueService: boolean;
+  isRideActive?: boolean;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -17,12 +19,20 @@ export const Navigation: React.FC<NavigationProps> = ({
   onSelectTab,
   onOpenAddFuel,
   language,
+  numberFormat = 'bn',
   urgentServiceCount,
   hasOverdueService,
 }) => {
   const t = translations[language];
 
-  const leftTabs: { id: TabType; label: string; icon: React.FC<{ className?: string }> }[] = [
+  const leftTabs: {
+    id: TabType;
+    label: string;
+    icon: React.FC<{ className?: string }>;
+    dot?: boolean;
+    badgeCount?: number;
+    isOverdue?: boolean;
+  }[] = [
     { id: 'home', label: t.navHome, icon: Home },
     { id: 'fuel', label: t.navFuel, icon: Fuel },
   ];
@@ -31,13 +41,16 @@ export const Navigation: React.FC<NavigationProps> = ({
     id: TabType;
     label: string;
     icon: React.FC<{ className?: string }>;
-    badge?: number;
+    dot?: boolean;
+    badgeCount?: number;
+    isOverdue?: boolean;
   }[] = [
     {
       id: 'service',
       label: t.navService,
       icon: Wrench,
-      badge: urgentServiceCount > 0 ? urgentServiceCount : undefined,
+      badgeCount: urgentServiceCount,
+      isOverdue: hasOverdueService,
     },
     { id: 'reports', label: t.navReports, icon: BarChart3 },
   ];
@@ -46,7 +59,9 @@ export const Navigation: React.FC<NavigationProps> = ({
     id: TabType;
     label: string;
     icon: React.FC<{ className?: string }>;
-    badge?: number;
+    dot?: boolean;
+    badgeCount?: number;
+    isOverdue?: boolean;
   }) => {
     const Icon = tab.icon;
     const isActive = currentTab === tab.id;
@@ -54,6 +69,7 @@ export const Navigation: React.FC<NavigationProps> = ({
     return (
       <button
         key={tab.id}
+        type="button"
         onClick={() => onSelectTab(tab.id)}
         className={`relative flex flex-col items-center justify-center min-h-[44px] py-1 px-1 rounded-2xl transition-all duration-200 active:scale-95 ${
           isActive
@@ -67,13 +83,16 @@ export const Navigation: React.FC<NavigationProps> = ({
               isActive ? 'stroke-[2.4]' : 'stroke-[1.9]'
             }`}
           />
-          {tab.badge !== undefined && tab.badge > 0 && (
+          {tab.dot && (
+            <span className="absolute -top-1 -right-1.5 w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse ring-2 ring-white dark:ring-[#171C18]" />
+          )}
+          {!tab.dot && tab.badgeCount !== undefined && tab.badgeCount > 0 && (
             <span
-              className={`absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white ${
-                hasOverdueService ? 'bg-rose-500' : 'bg-amber-500'
+              className={`absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-extrabold text-white flex items-center justify-center leading-none ring-2 ring-white dark:ring-[#171C18] tabular-nums ${
+                tab.isOverdue ? 'bg-rose-500' : 'bg-amber-500'
               }`}
             >
-              {tab.badge}
+              {formatNumber(tab.badgeCount, language, numberFormat)}
             </span>
           )}
         </div>
@@ -92,6 +111,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         {/* Center Lime Action Button (Add Fuel) */}
         <div className="flex items-center justify-center">
           <button
+            type="button"
             onClick={onOpenAddFuel}
             aria-label={t.addFuel}
             title={t.addFuel}

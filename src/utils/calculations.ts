@@ -1,4 +1,16 @@
-import { FuelEntry, ServiceItem, ServiceUrgency, ServiceStatusColor, MonthlyReport, Bike, ServiceLog } from '../types';
+import { FuelEntry, ServiceItem, ServiceUrgency, ServiceStatusColor, MonthlyReport, Bike, ServiceLog, RideRecord } from '../types';
+import { getLocalDateString } from './i18n';
+
+function roundKm2(val: number): number {
+  return Math.round((val + Number.EPSILON) * 100) / 100;
+}
+
+function formatKmPlain(val: number): string {
+  const rounded = roundKm2(val);
+  return Number.isInteger(rounded)
+    ? rounded.toString()
+    : rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
 
 /**
  * Calculates mileage (km/l) for each fuel entry.
@@ -63,8 +75,8 @@ export function calculateServiceUrgency(
   currentOdo: number,
   now: Date = new Date()
 ): ServiceUrgency {
-  const dueKm = item.lastServiceKm + item.kmInterval;
-  const kmRemaining = dueKm - currentOdo;
+  const dueKm = roundKm2(item.lastServiceKm + item.kmInterval);
+  const kmRemaining = roundKm2(dueKm - currentOdo);
 
   let daysRemaining: number | undefined = undefined;
   if (item.dayInterval && item.lastServiceDate) {
@@ -88,11 +100,12 @@ export function calculateServiceUrgency(
   }
 
   // Calculate an urgency score for sorting (lower score = higher priority / more urgent)
-  // Negative numbers mean overdue.
-  // We normalize km (200km ~ 7 days of normal riding ~ 30km/day)
-  let kmUrgency = kmRemaining;
-  let dayEquivalentKm = daysRemaining !== undefined ? daysRemaining * 30 : Infinity;
+  const kmUrgency = kmRemaining;
+  const dayEquivalentKm = daysRemaining !== undefined ? daysRemaining * 30 : Infinity;
   const urgencyScore = Math.min(kmUrgency, dayEquivalentKm);
+
+  const kmRemStr = formatKmPlain(kmRemaining);
+  const kmAbsStr = formatKmPlain(Math.abs(kmRemaining));
 
   // Status text strings
   let statusTextEn = '';
@@ -100,33 +113,33 @@ export function calculateServiceUrgency(
 
   if (isOverdue) {
     if (isKmOverdue && isDaysOverdue) {
-      statusTextEn = `Overdue by ${Math.abs(kmRemaining)} km & ${Math.abs(daysRemaining!)} days`;
-      statusTextBn = `${Math.abs(kmRemaining)} কিমি ও ${Math.abs(daysRemaining!)} দিন পার হয়ে গেছে`;
+      statusTextEn = `Overdue by ${kmAbsStr} km & ${Math.abs(daysRemaining!)} days`;
+      statusTextBn = `${kmAbsStr} কিমি ও ${Math.abs(daysRemaining!)} দিন পার হয়ে গেছে`;
     } else if (isKmOverdue) {
-      statusTextEn = `Overdue by ${Math.abs(kmRemaining)} km`;
-      statusTextBn = `${Math.abs(kmRemaining)} কিমি পার হয়ে গেছে`;
+      statusTextEn = `Overdue by ${kmAbsStr} km`;
+      statusTextBn = `${kmAbsStr} কিমি পার হয়ে গেছে`;
     } else {
       statusTextEn = `Overdue by ${Math.abs(daysRemaining!)} days`;
       statusTextBn = `${Math.abs(daysRemaining!)} দিন পার হয়ে গেছে`;
     }
   } else if (status === 'yellow') {
     if (kmRemaining <= 200 && daysRemaining !== undefined && daysRemaining <= 7) {
-      statusTextEn = `Due soon: ${kmRemaining} km or ${daysRemaining} days`;
-      statusTextBn = `শীঘ্রই সার্ভিস করুন: ${kmRemaining} কিমি বা ${daysRemaining} দিন`;
+      statusTextEn = `Due soon: ${kmRemStr} km or ${daysRemaining} days`;
+      statusTextBn = `শীঘ্রই সার্ভিস করুন: ${kmRemStr} কিমি বা ${daysRemaining} দিন`;
     } else if (kmRemaining <= 200) {
-      statusTextEn = `Due soon: ${kmRemaining} km remaining`;
-      statusTextBn = `শীঘ্রই প্রয়োজন: আর ${kmRemaining} কিমি বাকি`;
+      statusTextEn = `Due soon: ${kmRemStr} km remaining`;
+      statusTextBn = `শীঘ্রই প্রয়োজন: আর ${kmRemStr} কিমি বাকি`;
     } else {
       statusTextEn = `Due soon: ${daysRemaining} days remaining`;
       statusTextBn = `শীঘ্রই প্রয়োজন: আর ${daysRemaining} দিন বাকি`;
     }
   } else {
     if (daysRemaining !== undefined) {
-      statusTextEn = `${kmRemaining} km / ${daysRemaining} days remaining`;
-      statusTextBn = `আর ${kmRemaining} কিমি / ${daysRemaining} দিন বাকি`;
+      statusTextEn = `${kmRemStr} km / ${daysRemaining} days remaining`;
+      statusTextBn = `আর ${kmRemStr} কিমি / ${daysRemaining} দিন বাকি`;
     } else {
-      statusTextEn = `${kmRemaining} km remaining`;
-      statusTextBn = `আর ${kmRemaining} কিমি বাকি`;
+      statusTextEn = `${kmRemStr} km remaining`;
+      statusTextBn = `আর ${kmRemStr} কিমি বাকি`;
     }
   }
 
@@ -217,22 +230,23 @@ const MONTH_NAMES_BN = [
 export function calculateMonthlyReports(
   fuelEntries: FuelEntry[],
   serviceLogs: ServiceLog[],
-  bike: Bike
+  bike: Bike,
+  rideHistory: RideRecord[] = []
 ): MonthlyReport[] {
-  // Group fuel entries and service logs by YYYY-MM
+  // Group fuel entries, service logs, and GPS rides by YYYY-MM
   const monthMap = new Map<
     string,
     {
       fuelEntries: FuelEntry[];
       serviceLogs: ServiceLog[];
+      rides: RideRecord[];
     }
   >();
 
-  // Ensure months with fuel or service exist
   for (const f of fuelEntries) {
     const key = f.date.substring(0, 7); // YYYY-MM
     if (!monthMap.has(key)) {
-      monthMap.set(key, { fuelEntries: [], serviceLogs: [] });
+      monthMap.set(key, { fuelEntries: [], serviceLogs: [], rides: [] });
     }
     monthMap.get(key)!.fuelEntries.push(f);
   }
@@ -240,9 +254,17 @@ export function calculateMonthlyReports(
   for (const s of serviceLogs) {
     const key = s.date.substring(0, 7);
     if (!monthMap.has(key)) {
-      monthMap.set(key, { fuelEntries: [], serviceLogs: [] });
+      monthMap.set(key, { fuelEntries: [], serviceLogs: [], rides: [] });
     }
     monthMap.get(key)!.serviceLogs.push(s);
+  }
+
+  for (const r of rideHistory) {
+    const key = r.date.substring(0, 7);
+    if (!monthMap.has(key)) {
+      monthMap.set(key, { fuelEntries: [], serviceLogs: [], rides: [] });
+    }
+    monthMap.get(key)!.rides.push(r);
   }
 
   // Sort entries chronologically to determine odometer spans
@@ -265,6 +287,7 @@ export function calculateMonthlyReports(
       return new Date(a.date).getTime() - new Date(b.date).getTime();
     });
     const services = data.serviceLogs;
+    const monthGpsKm = roundKm2(data.rides.reduce((acc, r) => acc + (r.distanceKm || 0), 0));
 
     const fuelCost = fuels.reduce((acc, f) => acc + (f.totalPrice || 0), 0);
     const totalLitres = Math.round(fuels.reduce((acc, f) => acc + (f.litres || 0), 0) * 100) / 100;
@@ -283,9 +306,8 @@ export function calculateMonthlyReports(
       const priorEntries = allChronological.filter((f) => f.date < `${monthKey}-01`);
 
       if (priorEntries.length > 0) {
-        // Standard scenario: distance from end of previous month's reading to this month's maximum reading
         const lastPriorOdo = priorEntries[priorEntries.length - 1].odometer;
-        totalKm = Math.max(0, monthMaxOdo - lastPriorOdo);
+        totalKm = Math.max(monthGpsKm, Math.max(0, roundKm2(monthMaxOdo - lastPriorOdo)));
         avgMileage = totalLitres > 0 && totalKm > 0 ? Math.round((totalKm / totalLitres) * 10) / 10 : 0;
         costPerKm = totalKm > 0 ? Math.round((totalCost / totalKm) * 100) / 100 : 0;
       } else if (
@@ -293,26 +315,24 @@ export function calculateMonthlyReports(
         monthMinOdo >= bike.initialOdometer &&
         monthMinOdo - bike.initialOdometer <= 1000
       ) {
-        // Earliest month, starting from bike's known initial odometer
-        totalKm = Math.max(0, monthMaxOdo - bike.initialOdometer);
+        totalKm = Math.max(monthGpsKm, Math.max(0, roundKm2(monthMaxOdo - bike.initialOdometer)));
         avgMileage = totalLitres > 0 && totalKm > 0 ? Math.round((totalKm / totalLitres) * 10) / 10 : 0;
         costPerKm = totalKm > 0 ? Math.round((totalCost / totalKm) * 100) / 100 : 0;
       } else if (fuels.length > 1) {
-        // Earliest month with multiple entries (e.g. 8,850 km and 8,995 km):
-        // Distance traveled between the entries is monthMaxOdo - monthMinOdo
-        totalKm = Math.max(0, monthMaxOdo - monthMinOdo);
-        // The fuel consumed to travel this distance is the fuel added after the initial fill
+        totalKm = Math.max(monthGpsKm, Math.max(0, roundKm2(monthMaxOdo - monthMinOdo)));
         const consumedLitres = fuels.filter((f) => f.odometer > monthMinOdo).reduce((acc, f) => acc + (f.litres || 0), 0);
         const consumedFuelCost = fuels.filter((f) => f.odometer > monthMinOdo).reduce((acc, f) => acc + (f.totalPrice || 0), 0);
 
         avgMileage = consumedLitres > 0 && totalKm > 0 ? Math.round((totalKm / consumedLitres) * 10) / 10 : 0;
         costPerKm = totalKm > 0 ? Math.round(((consumedFuelCost + serviceCost) / totalKm) * 100) / 100 : 0;
       } else {
-        // Single entry in the earliest month with no prior baseline: distance cannot be measured yet
-        totalKm = 0;
+        totalKm = monthGpsKm;
         avgMileage = 0;
-        costPerKm = 0;
+        costPerKm = totalKm > 0 && totalCost > 0 ? Math.round((totalCost / totalKm) * 100) / 100 : 0;
       }
+    } else if (monthGpsKm > 0) {
+      totalKm = monthGpsKm;
+      costPerKm = totalKm > 0 && serviceCost > 0 ? Math.round((serviceCost / totalKm) * 100) / 100 : 0;
     }
 
     reports.push({
@@ -338,21 +358,23 @@ export function calculateMonthlyReports(
 export function calculateLifetimeStats(
   bike: Bike,
   fuelEntries: FuelEntry[],
-  serviceLogs: ServiceLog[]
+  serviceLogs: ServiceLog[],
+  rideHistory: RideRecord[] = []
 ) {
   const totalServiceCost = serviceLogs.reduce((sum, s) => sum + (s.cost || 0), 0);
+  const totalGpsRideKm = roundKm2(rideHistory.reduce((sum, r) => sum + (r.distanceKm || 0), 0));
 
-  // If no fuel entries exist, tracked distance is 0
+  // If no fuel entries exist, tracked distance comes from GPS rides
   if (!fuelEntries || fuelEntries.length === 0) {
     return {
       currentOdo: bike.currentOdometer,
-      totalDistance: 0,
+      totalDistance: totalGpsRideKm,
       totalFuelCost: 0,
       totalLitres: 0,
       totalServiceCost,
       totalCost: totalServiceCost,
       avgMileage: 0,
-      costPerKm: 0,
+      costPerKm: totalGpsRideKm > 0 && totalServiceCost > 0 ? Math.round((totalServiceCost / totalGpsRideKm) * 100) / 100 : 0,
     };
   }
 
@@ -379,11 +401,11 @@ export function calculateLifetimeStats(
       bike.initialOdometer < minOdo &&
       minOdo - bike.initialOdometer <= 1000
     ) {
-      totalDistance = maxOdo - bike.initialOdometer;
+      totalDistance = Math.max(totalGpsRideKm, roundKm2(maxOdo - bike.initialOdometer));
       avgMileage = totalLitres > 0 && totalDistance > 0 ? Math.round((totalDistance / totalLitres) * 10) / 10 : 0;
       costPerKm = totalDistance > 0 ? Math.round((totalCost / totalDistance) * 100) / 100 : 0;
     } else {
-      totalDistance = Math.max(0, maxOdo - minOdo);
+      totalDistance = Math.max(totalGpsRideKm, Math.max(0, roundKm2(maxOdo - minOdo)));
       const consumedLitres = fuelEntries.filter((f) => f.odometer > minOdo).reduce((sum, f) => sum + (f.litres || 0), 0);
       const consumedFuelCost = fuelEntries.filter((f) => f.odometer > minOdo).reduce((sum, f) => sum + (f.totalPrice || 0), 0);
 
@@ -396,13 +418,13 @@ export function calculateLifetimeStats(
       bike.initialOdometer < fuelEntries[0].odometer &&
       fuelEntries[0].odometer - bike.initialOdometer <= 1000
     ) {
-      totalDistance = fuelEntries[0].odometer - bike.initialOdometer;
+      totalDistance = Math.max(totalGpsRideKm, roundKm2(fuelEntries[0].odometer - bike.initialOdometer));
       avgMileage = totalLitres > 0 && totalDistance > 0 ? Math.round((totalDistance / totalLitres) * 10) / 10 : 0;
       costPerKm = totalDistance > 0 ? Math.round((totalCost / totalDistance) * 100) / 100 : 0;
     } else {
-      totalDistance = 0;
+      totalDistance = totalGpsRideKm;
       avgMileage = 0;
-      costPerKm = 0;
+      costPerKm = totalDistance > 0 && totalCost > 0 ? Math.round((totalCost / totalDistance) * 100) / 100 : 0;
     }
   }
 
@@ -437,7 +459,7 @@ export function autoSyncServicesForOdometerChange(
   oldOdo: number,
   newOdo: number,
   serviceLogs: ServiceLog[],
-  todayStr: string = new Date().toISOString().split('T')[0],
+  todayStr: string = getLocalDateString(),
   forceResetAll: boolean = false
 ): { updatedItems: ServiceItem[]; updatedInitialOdo: number; changed: boolean } {
   const isUninitializedBike = bike.initialOdometer === 0 && newOdo > 500;
@@ -452,7 +474,7 @@ export function autoSyncServicesForOdometerChange(
         changed = true;
         return {
           ...item,
-          lastServiceKm: newOdo,
+          lastServiceKm: roundKm2(newOdo),
           lastServiceDate: todayStr,
         };
       }
@@ -469,14 +491,14 @@ export function autoSyncServicesForOdometerChange(
       changed = true;
       return {
         ...item,
-        lastServiceKm: newOdo,
+        lastServiceKm: roundKm2(newOdo),
         lastServiceDate: todayStr,
       };
     }
 
     if (item.lastServiceKm > newOdo) {
-      const usedKm = Math.max(0, oldOdo - item.lastServiceKm);
-      const adjustedLastKm = Math.max(0, newOdo - usedKm);
+      const usedKm = Math.max(0, roundKm2(oldOdo - item.lastServiceKm));
+      const adjustedLastKm = Math.max(0, roundKm2(newOdo - usedKm));
       changed = true;
       return {
         ...item,
@@ -491,9 +513,9 @@ export function autoSyncServicesForOdometerChange(
   if (newOdo === 0) {
     updatedInitialOdo = 0;
   } else if (bike.initialOdometer === 0 && newOdo > 0) {
-    updatedInitialOdo = newOdo;
+    updatedInitialOdo = roundKm2(newOdo);
   } else if (newOdo < bike.initialOdometer) {
-    updatedInitialOdo = newOdo;
+    updatedInitialOdo = roundKm2(newOdo);
   }
 
   return { updatedItems, updatedInitialOdo, changed };

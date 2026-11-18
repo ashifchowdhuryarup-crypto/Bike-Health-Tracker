@@ -1,6 +1,22 @@
 import React, { useMemo } from 'react';
-import { Bike, FuelEntry, ServiceUrgency, Language, NumberFormatType, MonthlyReport } from '../types';
-import { translations, formatNumber, formatCurrency, formatDate } from '../utils/i18n';
+import {
+  ActiveRideSession,
+  Bike,
+  FuelEntry,
+  ServiceUrgency,
+  Language,
+  NumberFormatType,
+  MonthlyReport,
+  RideRecord,
+  TabType,
+} from '../types';
+import {
+  translations,
+  formatNumber,
+  formatCurrency,
+  formatOdometer,
+  getLocalDateString,
+} from '../utils/i18n';
 import {
   Fuel,
   Wrench,
@@ -8,23 +24,25 @@ import {
   Droplets,
   Check,
   ArrowRight,
-  Plus,
   CheckCircle2,
   AlertTriangle,
   Clock,
+  Map as MapIcon,
+  Route,
+  ChevronRight,
 } from 'lucide-react';
 import { PWAInstallBanner } from './PWAInstallBanner';
 
 interface HomeDashboardProps {
   bike: Bike;
   fuelEntries: FuelEntry[];
-  calculatedMileages: Map<string, number | null>;
+  rideHistory: RideRecord[];
+  activeRide: ActiveRideSession | null;
   urgentServices: ServiceUrgency[];
   thisMonthReport: MonthlyReport | null;
-  onOpenAddFuel: () => void;
   onOpenMarkService: (serviceItemId?: string) => void;
   onOpenResetOdo?: () => void;
-  onNavigateToTab: (tab: 'fuel' | 'service' | 'reports') => void;
+  onNavigateToTab: (tab: TabType) => void;
   language: Language;
   numberFormat: NumberFormatType;
 }
@@ -44,10 +62,10 @@ const MONTHS_BN = [
 export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   bike,
   fuelEntries,
-  calculatedMileages,
+  rideHistory,
+  activeRide,
   urgentServices,
   thisMonthReport,
-  onOpenAddFuel,
   onOpenMarkService,
   onOpenResetOdo,
   onNavigateToTab,
@@ -61,15 +79,26 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const topReminders = urgentServices.slice(0, 3);
   const nearestService = urgentServices[0] || null;
 
-  // Recent 3 fuel entries (newest first)
-  const recentEntries = [...fuelEntries]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || b.odometer - a.odometer)
-    .slice(0, 3);
+  const rideSummary = useMemo(() => {
+    const totalGpsKm = rideHistory.reduce((sum, r) => sum + r.distanceKm, 0);
+    const todayIso = getLocalDateString();
+    const todayKm = rideHistory
+      .filter((r) => r.date === todayIso)
+      .reduce((sum, r) => sum + r.distanceKm, 0);
+    return {
+      totalRides: rideHistory.length,
+      totalGpsKm,
+      todayKm,
+    };
+  }, [rideHistory]);
 
   // Build 7-day strip centered around today
   const weekDays = useMemo(() => {
     const today = new Date();
-    const fuelDateSet = new Set(fuelEntries.map((e) => e.date));
+    const activityDates = new Set([
+      ...fuelEntries.map((e) => e.date),
+      ...rideHistory.map((r) => r.date),
+    ]);
     const days: {
       dateStr: string;
       dayNum: number;
@@ -92,11 +121,11 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         dayNum: d.getDate(),
         weekdayLabel: language === 'bn' ? WEEKDAYS_BN[dow] : WEEKDAYS_EN[dow],
         isToday: offset === 0,
-        hasActivity: fuelDateSet.has(dateStr),
+        hasActivity: activityDates.has(dateStr),
       });
     }
     return days;
-  }, [fuelEntries, language]);
+  }, [fuelEntries, rideHistory, language]);
 
   const now = new Date();
   const currentMonthYearLabel =
@@ -135,34 +164,43 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             <div className="flex items-center justify-between gap-4">
               {/* Left Info */}
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-[#3C4B28] dark:text-[#CBE795]">
-                  <Gauge className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">{t.currentOdo}</span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => onNavigateToTab('odometer')}
+                  className="group text-left rounded-2xl -m-1.5 p-1.5 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition active:scale-[0.98]"
+                >
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-[#3C4B28] dark:text-[#CBE795]">
+                    <Gauge className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{t.currentOdo}</span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                  </div>
 
-                <div className="flex items-baseline gap-1.5 mt-1">
-                  <span className="text-[32px] font-extrabold tracking-tight tabular-nums leading-none">
-                    {formatNumber(currentOdo, language, numberFormat)}
-                  </span>
-                  <span className="text-sm font-bold text-[#3C4B28] dark:text-[#CBE795]">
-                    {t.km}
-                  </span>
-                </div>
+                  <div className="flex items-baseline gap-1.5 mt-1">
+                    <span className="text-[32px] font-extrabold tracking-tight tabular-nums leading-none">
+                      {formatOdometer(currentOdo, language, numberFormat)}
+                    </span>
+                    <span className="text-sm font-bold text-[#3C4B28] dark:text-[#CBE795]">
+                      {t.km}
+                    </span>
+                  </div>
+                </button>
 
                 <div className="mt-3.5 flex flex-wrap items-center gap-2">
                   {onOpenResetOdo && (
                     <button
+                      type="button"
                       onClick={onOpenResetOdo}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-full bg-white/80 hover:bg-white dark:bg-white/10 dark:hover:bg-white/15 active:scale-95 text-xs font-bold text-[#141912] dark:text-[#ECFACB] transition shadow-xs"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-full bg-[#141912] hover:bg-black/85 dark:bg-[#9AE62E] dark:hover:bg-[#8CD825] active:scale-95 text-xs font-extrabold text-white dark:text-[#141912] transition shadow-xs"
                     >
-                      <Gauge className="w-3.5 h-3.5 text-[#5C9E00] dark:text-[#A3EC38]" />
+                      <Gauge className="w-3.5 h-3.5" />
                       <span>{language === 'bn' ? 'ওডো পরিবর্তন' : 'Update Odo'}</span>
                     </button>
                   )}
 
                   <button
+                    type="button"
                     onClick={() => onOpenMarkService(nearestService?.item.id)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-full bg-[#141912]/90 hover:bg-[#141912] dark:bg-[#9AE62E] dark:hover:bg-[#8CD825] active:scale-95 text-xs font-bold text-white dark:text-[#141912] transition"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-full bg-white/80 hover:bg-white dark:bg-white/10 dark:hover:bg-white/15 active:scale-95 text-xs font-bold text-[#141912] dark:text-[#ECFACB] transition shadow-xs"
                   >
                     <Wrench className="w-3.5 h-3.5" />
                     <span>{t.markServiceDone}</span>
@@ -205,8 +243,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                     <>
                       <span className="text-[15px] font-extrabold tabular-nums leading-none text-[#141912] dark:text-white">
                         {nearestService.kmRemaining <= 0
-                          ? formatNumber(Math.abs(nearestService.kmRemaining), language, numberFormat)
-                          : formatNumber(nearestService.kmRemaining, language, numberFormat)}
+                          ? formatOdometer(Math.abs(nearestService.kmRemaining), language, numberFormat)
+                          : formatOdometer(nearestService.kmRemaining, language, numberFormat)}
                       </span>
                       <span className="text-[10px] font-semibold text-[#3C4B28] dark:text-[#CBE795] mt-0.5 leading-tight">
                         {nearestService.kmRemaining <= 0
@@ -354,7 +392,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                   {language === 'bn' ? 'মাসিক দূরত্ব' : 'Monthly Ride'}
                 </p>
                 <p className="text-base font-extrabold tabular-nums text-[#141912] dark:text-white mt-0.5">
-                  {formatNumber(thisMonthReport?.totalKm || 0, language, numberFormat)} {t.km}
+                  {formatOdometer(thisMonthReport?.totalKm || 0, language, numberFormat)} {t.km}
                 </p>
               </div>
             </div>
@@ -362,10 +400,55 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         </div>
       </div>
 
-      {/* Bottom Responsive Grid: Service Reminders + Recent Fuel Logs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Urgent Service Reminders */}
-        <div className="space-y-2.5">
+      {/* Clean GPS Ride Summary & Odometer Strip (Map stays in dedicated Map Panel) */}
+      <div className="grid grid-cols-2 gap-3.5">
+        <button
+          type="button"
+          onClick={() => onNavigateToTab('rides')}
+          className="text-left bg-white dark:bg-[#171C18] rounded-[24px] p-4 shadow-[0_2px_12px_rgba(15,23,42,0.04)] border border-black/[0.04] dark:border-white/[0.06] hover:border-[#9AE62E]/60 transition active:scale-[0.98]"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[13px] font-bold text-[#141912] dark:text-slate-100">
+              {t.rideSummaryTitle}
+            </span>
+            <span className="w-9 h-9 rounded-full bg-[#EEF9DA] dark:bg-[#9AE62E]/15 text-[#5C9E00] dark:text-[#A3EC38] flex items-center justify-center shrink-0">
+              <Route className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="mt-3 flex items-baseline gap-1.5">
+            <span className="text-[22px] font-extrabold tabular-nums text-[#141912] dark:text-white leading-none">
+              {formatOdometer(rideSummary.totalGpsKm, language, numberFormat)}
+            </span>
+            <span className="text-xs font-medium text-[#6F766C] dark:text-slate-400">
+              {t.km} · {formatNumber(rideSummary.totalRides, language, numberFormat)} {t.navRides}
+            </span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onNavigateToTab('map')}
+          className="text-left bg-white dark:bg-[#171C18] rounded-[24px] p-4 shadow-[0_2px_12px_rgba(15,23,42,0.04)] border border-black/[0.04] dark:border-white/[0.06] hover:border-[#9AE62E]/60 transition active:scale-[0.98]"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[13px] font-bold text-[#141912] dark:text-slate-100">
+              {t.navMap}
+            </span>
+            <span className="w-9 h-9 rounded-full bg-[#EBF7FF] dark:bg-sky-500/15 text-sky-600 flex items-center justify-center shrink-0">
+              <MapIcon className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-1">
+            <span className="text-xs font-extrabold text-[#5C9E00] dark:text-[#A3EC38]">
+              {activeRide ? t.gpsTrackingActive : t.startRideLabel}
+            </span>
+            <ArrowRight className="w-4 h-4 text-[#5C9E00] dark:text-[#A3EC38]" />
+          </div>
+        </button>
+      </div>
+
+      {/* Urgent Service Reminders */}
+      <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-sm font-extrabold text-[#141912] dark:text-white">
               {t.topReminders}
@@ -429,13 +512,13 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                         <p className="text-xs text-[#6F766C] dark:text-slate-400 mt-0.5 truncate tabular-nums">
                           <span>
                             {language === 'bn' ? 'ডিউ' : 'Due'}{' '}
-                            {formatNumber(dueKm, language, numberFormat)} {t.km}
+                            {formatOdometer(dueKm, language, numberFormat)} {t.km}
                           </span>
                           <span className="mx-1.5">·</span>
                           <span className={statusTextClass}>
                             {urgency.kmRemaining <= 0
-                              ? `${formatNumber(Math.abs(urgency.kmRemaining), language, numberFormat)} ${t.km} ${language === 'bn' ? 'বেশি' : 'past'}`
-                              : `${formatNumber(urgency.kmRemaining, language, numberFormat)} ${t.km} ${language === 'bn' ? 'বাকি' : 'left'}`}
+                              ? `${formatOdometer(Math.abs(urgency.kmRemaining), language, numberFormat)} ${t.km} ${language === 'bn' ? 'বেশি' : 'past'}`
+                              : `${formatOdometer(urgency.kmRemaining, language, numberFormat)} ${t.km} ${language === 'bn' ? 'বাকি' : 'left'}`}
                           </span>
                         </p>
                       </div>
@@ -454,91 +537,6 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
               })}
             </div>
           )}
-        </div>
-
-        {/* Recent Fuel Entries */}
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between px-1">
-            <h2 className="text-sm font-extrabold text-[#141912] dark:text-white">
-              {t.recentFills}
-            </h2>
-            <button
-              onClick={() => onNavigateToTab('fuel')}
-              className="text-xs text-[#5C9E00] dark:text-[#A3EC38] font-bold hover:underline inline-flex items-center gap-1 min-h-[32px]"
-            >
-              <span>{t.fuelLogTitle}</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {recentEntries.length === 0 ? (
-            <div className="bg-white dark:bg-[#171C18] rounded-[24px] p-5 border border-black/[0.04] dark:border-white/[0.06] text-center shadow-[0_2px_12px_rgba(15,23,42,0.03)]">
-              <Fuel className="w-8 h-8 text-[#9EA69B] mx-auto mb-1.5" />
-              <p className="text-xs text-[#6F766C] dark:text-slate-400">
-                {t.noFillsYet}
-              </p>
-              <button
-                onClick={onOpenAddFuel}
-                className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold px-4 py-2.5 min-h-[44px] rounded-full bg-[#9AE62E] hover:bg-[#8CD825] text-[#141912] transition active:scale-95"
-              >
-                <Plus className="w-4 h-4" />
-                <span>{t.addFuel}</span>
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {recentEntries.map((entry) => {
-                const mileage = calculatedMileages.get(entry.id);
-
-                return (
-                  <div
-                    key={entry.id}
-                    className="bg-white dark:bg-[#171C18] rounded-[22px] p-3.5 border border-black/[0.04] dark:border-white/[0.06] shadow-[0_2px_10px_rgba(15,23,42,0.03)] flex items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-11 h-11 rounded-full bg-[#FFF3EB] dark:bg-orange-500/15 text-orange-500 flex items-center justify-center shrink-0">
-                        <Fuel className="w-[18px] h-[18px]" />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 text-sm font-bold text-[#141912] dark:text-white truncate tabular-nums">
-                          <span>
-                            {formatNumber(entry.odometer, language, numberFormat)} {t.km}
-                          </span>
-                          <span className="text-[#9EA69B] font-normal">·</span>
-                          <span className="text-xs font-medium text-[#6F766C] dark:text-slate-400 truncate">
-                            {formatDate(entry.date, language)}
-                          </span>
-                        </div>
-                        <div className="text-xs text-[#6F766C] dark:text-slate-400 mt-0.5 tabular-nums truncate">
-                          {formatNumber(entry.litres, language, numberFormat, 2)} {t.litres} ·{' '}
-                          {formatCurrency(entry.totalPrice, language, numberFormat)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      {mileage !== null && mileage !== undefined ? (
-                        <div>
-                          <span className="text-sm font-extrabold tabular-nums text-[#5C9E00] dark:text-[#A3EC38]">
-                            {formatNumber(mileage, language, numberFormat, 1)}
-                          </span>
-                          <span className="block text-[10px] font-medium text-[#6F766C] dark:text-slate-400">
-                            {t.kmPerLitre}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-xs font-medium text-[#7A8277] dark:text-slate-400">
-                          {entry.isFullTank ? t.firstEntryBadge : t.partialFillBadge}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

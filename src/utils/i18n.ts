@@ -64,9 +64,30 @@ export function formatCurrency(
   return `৳${numStr}`;
 }
 
+export function getLocalDateString(dateInput: Date | string = new Date()): string {
+  if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+    return dateInput;
+  }
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export function formatDate(dateStr: string, lang: Language = 'bn'): string {
   if (!dateStr) return '';
-  const date = new Date(dateStr);
+  let date: Date;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    date = new Date(y, m - 1, d);
+  } else {
+    date = new Date(dateStr);
+  }
   if (isNaN(date.getTime())) return dateStr;
 
   const day = date.getDate();
@@ -86,6 +107,52 @@ export function formatDate(dateStr: string, lang: Language = 'bn'): string {
     return `${toBengaliDigits(day)} ${bnMonths[month]}, ${toBengaliDigits(year)}`;
   }
   return `${day} ${enMonths[month]} ${year}`;
+}
+
+export function formatOdometer(
+  num: number | null | undefined,
+  lang: Language = 'bn',
+  numFormat: NumberFormatType = 'bn'
+): string {
+  if (num === null || num === undefined || isNaN(num)) return '-';
+  const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
+  const fixedStr = Number.isInteger(rounded)
+    ? rounded.toString()
+    : rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  const parts = fixedStr.split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const formatted = parts.join('.');
+  return lang === 'bn' && numFormat === 'bn' ? toBengaliDigits(formatted) : formatted;
+}
+
+export function formatDuration(
+  seconds: number,
+  lang: Language = 'bn',
+  numFormat: NumberFormatType = 'bn'
+): string {
+  const totalSec = Math.max(0, Math.floor(seconds));
+  const hrs = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const raw = hrs > 0 ? `${hrs}:${pad(mins)}:${pad(secs)}` : `${pad(mins)}:${pad(secs)}`;
+  return lang === 'bn' && numFormat === 'bn' ? toBengaliDigits(raw) : raw;
+}
+
+export function formatTimeOfDay(
+  isoString: string,
+  lang: Language = 'bn',
+  numFormat: NumberFormatType = 'bn'
+): string {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
+  let hours = d.getHours();
+  const mins = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12;
+  const raw = `${hours}:${mins} ${ampm}`;
+  return lang === 'bn' && numFormat === 'bn' ? toBengaliDigits(raw) : raw;
 }
 
 export const translations = {
@@ -257,6 +324,54 @@ export const translations = {
     clearPriorFuelLogsHelp: 'পুরনো ফুয়েল ডেটা মুছে দিয়ে নতুন ওডোমিটার থেকে ফ্রেশ শুরু করতে চাইলে টিক দিন।',
     odometerResetSuccess: 'ওডোমিটার সফলভাবে আপডেট / রিসেট করা হয়েছে!',
     confirmResetBtn: 'ওডোমিটার আপডেট করুন',
+
+    // Navigation & GPS Ride Tracking Sections
+    navMap: 'GPS ম্যাপ',
+    navRides: 'রাইড হিস্ট্রি',
+    navOdometer: 'ওডোমিটার',
+    gpsMapTitle: 'লাইভ GPS ম্যাপ ও রাইড ট্র্যাকার',
+    startRideBtn: 'START',
+    startRideLabel: 'রাইড শুরু করুন',
+    stopRideBtn: 'STOP',
+    stopRideLabel: 'রাইড শেষ ও সেভ করুন',
+    stopRideConfirmTitle: 'রাইড সম্পন্ন ও সেভ করবেন?',
+    stopRideConfirmMsg: 'এই রাইডের দূরত্ব স্বয়ংক্রিয়ভাবে সেভ হবে এবং আপনার বর্তমান ওডোমিটার আপডেট হবে।',
+    confirmStopSave: 'হ্যাঁ, সেভ করুন',
+    keepRiding: 'রাইড চালিয়ে যান',
+    gpsTrackingActive: 'লাইভ GPS চালু আছে',
+    gpsAcquiring: 'GPS সিগন্যাল খোঁজা হচ্ছে...',
+    gpsSignalLost: 'GPS সিগন্যাল বিচ্ছিন্ন — সিগন্যাল এলে স্বয়ংক্রিয়ভাবে যুক্ত হবে',
+    gpsPermissionDenied: 'লোকেশন অনুমতি বন্ধ রয়েছে। ফোনের ব্রাউজার সেটিংস থেকে Location Allow করুন।',
+    gpsUnsupported: 'এই ডিভাইসে GPS লোকেশন সাপোর্ট নেই।',
+    offlineTrackingNotice: 'ইন্টারনেট সংযোগ নেই — GPS দূরত্ব অফলাইনে সেভ হচ্ছে।',
+    rideRecoveredBanner: 'অসম্পূর্ণ একটি রাইড পুনরুদ্ধার করা হয়েছে এবং ট্র্যাকিং চলছে।',
+    rideSavedBanner: 'রাইড সফলভাবে সেভ হয়েছে এবং ওডোমিটার আপডেট হয়েছে!',
+    recenterMap: 'লোকেশন ফোকাস',
+    backToLive: 'লাইভ ট্র্যাকিংয়ে ফিরুন',
+    liveDistance: 'দূরত্ব',
+    rideDuration: 'সময়কাল',
+    avgSpeed: 'গড় গতি',
+    maxSpeed: 'সর্বোচ্চ গতি',
+    currentSpeed: 'বর্তমান গতি',
+    kmh: 'কিমি/ঘণ্টা',
+    gpsPoints: 'GPS পয়েন্ট',
+    rideHistoryTitle: 'দৈনিক রাইড হিস্ট্রি',
+    filterByDate: 'তারিখ অনুযায়ী দেখুন',
+    allDates: 'সব তারিখ',
+    noRidesYet: 'এখনও কোনো GPS রাইড রেকর্ড করা হয়নি।',
+    noRidesHelp: 'GPS ম্যাপ থেকে START বাটনে চাপ দিয়ে আপনার রাইড ট্র্যাক করুন।',
+    viewRouteOnMap: 'ম্যাপে রুট দেখুন',
+    startPoint: 'শুরু',
+    endPoint: 'শেষ',
+    odometerChange: 'ওডোমিটার আপডেট',
+    deleteRideConfirm: 'আপনি কি নিশ্চিত যে এই রাইড রেকর্ডটি মুছে ফেলতে চান? (ওডোমিটার অপরিবর্তিত থাকবে)',
+    odometerPanelTitle: 'ওডোমিটার ও মোট দূরত্ব',
+    startingBaselineOdo: 'শুরুর ওডোমিটার বেসলাইন',
+    gpsTrackedDistance: 'মোট GPS রাইড দূরত্ব',
+    totalRidesCompleted: 'সম্পন্ন রাইড',
+    odoRideLedger: 'রাইড অনুযায়ী ওডোমিটার হিসাব',
+    inspectingSavedRoute: 'সংরক্ষিত রাইড রুট প্রিভিউ',
+    rideSummaryTitle: 'GPS রাইড সামারি',
   },
   en: {
     // App Header & Branding
@@ -426,5 +541,53 @@ export const translations = {
     clearPriorFuelLogsHelp: 'Check this if you want to wipe old fuel entries and start fresh with the new odometer.',
     odometerResetSuccess: 'Odometer successfully reset / updated!',
     confirmResetBtn: 'Update Odometer',
+
+    // Navigation & GPS Ride Tracking Sections
+    navMap: 'GPS Map',
+    navRides: 'Rides',
+    navOdometer: 'Odometer',
+    gpsMapTitle: 'Live GPS Map & Ride Tracker',
+    startRideBtn: 'START',
+    startRideLabel: 'Start Ride',
+    stopRideBtn: 'STOP',
+    stopRideLabel: 'Stop & Save Ride',
+    stopRideConfirmTitle: 'Stop & Save Ride?',
+    stopRideConfirmMsg: 'This ride distance will be saved permanently and automatically added to your odometer.',
+    confirmStopSave: 'Yes, Save Ride',
+    keepRiding: 'Keep Riding',
+    gpsTrackingActive: 'Live GPS Active',
+    gpsAcquiring: 'Acquiring GPS fix...',
+    gpsSignalLost: 'GPS signal lost — will auto-resume when signal returns',
+    gpsPermissionDenied: 'Location permission denied. Please allow Location access in your browser/Android settings.',
+    gpsUnsupported: 'GPS geolocation is not supported on this device.',
+    offlineTrackingNotice: 'Offline mode — GPS distance tracking continues locally.',
+    rideRecoveredBanner: 'Active ride recovered automatically and GPS tracking resumed.',
+    rideSavedBanner: 'Ride saved permanently & odometer updated automatically!',
+    recenterMap: 'Center Map',
+    backToLive: 'Back to Live Map',
+    liveDistance: 'Distance',
+    rideDuration: 'Duration',
+    avgSpeed: 'Avg Speed',
+    maxSpeed: 'Max Speed',
+    currentSpeed: 'Speed',
+    kmh: 'km/h',
+    gpsPoints: 'GPS Points',
+    rideHistoryTitle: 'Daily Ride History',
+    filterByDate: 'Filter by Date',
+    allDates: 'All Dates',
+    noRidesYet: 'No GPS rides recorded yet.',
+    noRidesHelp: 'Open GPS Map and press START to track and save your rides automatically.',
+    viewRouteOnMap: 'View Route on Map',
+    startPoint: 'Start',
+    endPoint: 'End',
+    odometerChange: 'Odometer Update',
+    deleteRideConfirm: 'Are you sure you want to delete this ride record? (Current odometer remains unchanged)',
+    odometerPanelTitle: 'Odometer & Distance Records',
+    startingBaselineOdo: 'Starting Baseline Odometer',
+    gpsTrackedDistance: 'Total GPS Ride Distance',
+    totalRidesCompleted: 'Completed Rides',
+    odoRideLedger: 'Odometer & Ride Distance Ledger',
+    inspectingSavedRoute: 'Saved Ride Route Preview',
+    rideSummaryTitle: 'GPS Ride Summary',
   },
 };

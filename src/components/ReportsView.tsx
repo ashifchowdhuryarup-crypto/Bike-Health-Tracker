@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { MonthlyReport, FuelEntry, Language, NumberFormatType, Bike, ServiceLog } from '../types';
-import { translations, formatNumber, formatCurrency, formatDate } from '../utils/i18n';
+import { MonthlyReport, FuelEntry, Language, NumberFormatType, Bike, ServiceLog, RideRecord } from '../types';
+import { translations, formatNumber, formatCurrency, formatDate, formatOdometer } from '../utils/i18n';
 import { checkMileageDropAlert, calculateLifetimeStats } from '../utils/calculations';
 import {
   AlertTriangle,
@@ -14,6 +14,7 @@ interface ReportsViewProps {
   bike: Bike;
   fuelEntries: FuelEntry[];
   serviceLogs: ServiceLog[];
+  rideHistory?: RideRecord[];
   calculatedMileages: Map<string, number | null>;
   monthlyReports: MonthlyReport[];
   language: Language;
@@ -24,6 +25,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   bike,
   fuelEntries,
   serviceLogs,
+  rideHistory = [],
   calculatedMileages,
   monthlyReports,
   language,
@@ -32,7 +34,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const t = translations[language];
 
   const alert = checkMileageDropAlert(fuelEntries);
-  const lifetime = calculateLifetimeStats(bike, fuelEntries, serviceLogs);
+  const lifetime = calculateLifetimeStats(bike, fuelEntries, serviceLogs, rideHistory);
 
   // Prepare last 7 full-tank mileage points in chronological order
   const chartData = [...fuelEntries]
@@ -145,7 +147,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             {selectedPoint && (
               <p className="text-xs text-[#6F766C] dark:text-slate-400 mt-2 tabular-nums">
                 {formatDate(selectedPoint.date, language)} ·{' '}
-                {formatNumber(selectedPoint.odometer, language, numberFormat)} {t.km}
+                {formatOdometer(selectedPoint.odometer, language, numberFormat)} {t.km}
               </p>
             )}
           </div>
@@ -286,7 +288,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
             <div className="flex items-baseline gap-1 flex-wrap">
               <span className="text-xl font-extrabold tabular-nums text-[#141912] dark:text-white leading-none">
-                {formatNumber(lifetime.totalDistance, language, numberFormat)}
+                {formatOdometer(lifetime.totalDistance, language, numberFormat)}
               </span>
               <span className="text-[11px] font-medium text-[#6F766C] dark:text-slate-400">
                 {t.km}
@@ -412,7 +414,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       {language === 'bn' ? row.monthNameBn : row.monthNameEn}
                     </td>
                     <td className="py-3 px-2 text-right tabular-nums font-semibold text-[#3F4A39] dark:text-slate-300 whitespace-nowrap">
-                      {formatNumber(row.totalKm, language, numberFormat)}
+                      {formatOdometer(row.totalKm, language, numberFormat)}
                     </td>
                     <td className="py-3 px-2 text-right tabular-nums whitespace-nowrap">
                       <span className="font-extrabold text-[#5C9E00] dark:text-[#A3EC38]">

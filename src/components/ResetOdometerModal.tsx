@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Bike, ServiceItem, ServiceLog, Language, NumberFormatType } from '../types';
-import { translations, formatNumber } from '../utils/i18n';
+import { translations, formatOdometer, getLocalDateString } from '../utils/i18n';
 import { autoSyncServicesForOdometerChange, calculateServiceUrgency } from '../utils/calculations';
 import {
   Gauge,
@@ -63,7 +63,7 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
       bike.currentOdometer,
       parsed,
       serviceLogs,
-      new Date().toISOString().split('T')[0],
+      getLocalDateString(),
       resetAllServices
     );
     return updatedItems
@@ -79,7 +79,7 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
 
   const handleAddKm = (increment: number) => {
     const current = !isNaN(parsed) ? parsed : currentOdo;
-    setNewOdoInput(Math.max(0, current + increment).toString());
+    setNewOdoInput((Math.round(Math.max(0, current + increment) * 100) / 100).toString());
     setError(null);
   };
 
@@ -133,7 +133,7 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
                 {t.currentOdoReading}
               </span>
               <span className="text-xl font-extrabold tabular-nums text-[#141912] dark:text-white">
-                {formatNumber(currentOdo, language, numberFormat)} {t.km}
+                {formatOdometer(currentOdo, language, numberFormat)} {t.km}
               </span>
             </div>
             <span className="text-xs font-bold text-[#5C9E00] dark:text-[#A3EC38]">
@@ -162,7 +162,7 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
                 onClick={() => handleAddKm(50)}
                 className="px-3 py-2.5 min-h-[40px] rounded-2xl text-xs font-bold bg-[#F6F7F4] dark:bg-white/[0.05] text-[#141912] dark:text-slate-200 hover:bg-[#D7F49A] dark:hover:bg-[#1E2B14] transition text-center"
               >
-                +৫০ কিমি
+                {language === 'bn' ? '+৫০ কিমি' : '+50 km'}
               </button>
 
               <button
@@ -170,7 +170,7 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
                 onClick={() => handleAddKm(100)}
                 className="px-3 py-2.5 min-h-[40px] rounded-2xl text-xs font-bold bg-[#F6F7F4] dark:bg-white/[0.05] text-[#141912] dark:text-slate-200 hover:bg-[#D7F49A] dark:hover:bg-[#1E2B14] transition text-center"
               >
-                +১০০ কিমি
+                {language === 'bn' ? '+১০০ কিমি' : '+100 km'}
               </button>
             </div>
           </div>
@@ -183,8 +183,8 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
               {isValidParsed && parsed !== currentOdo && (
                 <span className={`text-xs font-extrabold tabular-nums ${diff > 0 ? 'text-[#5C9E00] dark:text-[#A3EC38]' : 'text-amber-600 dark:text-amber-400'}`}>
                   {diff > 0
-                    ? `+${formatNumber(diff, language, numberFormat)} ${t.km}`
-                    : `-${formatNumber(Math.abs(diff), language, numberFormat)} ${t.km}`}
+                    ? `+${formatOdometer(diff, language, numberFormat)} ${t.km}`
+                    : `-${formatOdometer(Math.abs(diff), language, numberFormat)} ${t.km}`}
                 </span>
               )}
             </div>
@@ -236,8 +236,8 @@ export const ResetOdometerModal: React.FC<ResetOdometerModalProps> = ({
                       }`}
                     >
                       {u.kmRemaining <= 0
-                        ? `${formatNumber(Math.abs(u.kmRemaining), language, numberFormat)} ${t.km} ${language === 'bn' ? 'বেশি' : 'past'}`
-                        : `${formatNumber(u.kmRemaining, language, numberFormat)} ${t.km} ${language === 'bn' ? 'বাকি' : 'left'}`}
+                        ? `${formatOdometer(Math.abs(u.kmRemaining), language, numberFormat)} ${t.km} ${language === 'bn' ? 'বেশি' : 'past'}`
+                        : `${formatOdometer(u.kmRemaining, language, numberFormat)} ${t.km} ${language === 'bn' ? 'বাকি' : 'left'}`}
                     </span>
                   </div>
                 ))}

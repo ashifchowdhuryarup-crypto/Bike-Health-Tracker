@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ServiceItem, ServiceLog, ServiceUrgency, Language, NumberFormatType, Bike } from '../types';
-import { translations, formatNumber, formatCurrency, formatDate } from '../utils/i18n';
+import { translations, formatNumber, formatCurrency, formatDate, formatOdometer } from '../utils/i18n';
 import { ConfirmDialog } from './ConfirmDialog';
 import {
   Wrench,
@@ -178,7 +178,7 @@ export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
                         {t.lastServiceKm}
                       </span>
                       <span className="font-bold tabular-nums text-[#141912] dark:text-white">
-                        {formatNumber(item.lastServiceKm, language, numberFormat)} {t.km}
+                        {formatOdometer(item.lastServiceKm, language, numberFormat)} {t.km}
                       </span>
                       {item.lastServiceDate && (
                         <span className="block text-[10px] text-[#7A8277] dark:text-slate-400">
@@ -192,7 +192,7 @@ export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
                         {language === 'bn' ? 'পরবর্তী ডিউ' : 'Next Due'}
                       </span>
                       <span className="font-bold tabular-nums text-[#141912] dark:text-white">
-                        {formatNumber(dueKm, language, numberFormat)} {t.km}
+                        {formatOdometer(dueKm, language, numberFormat)} {t.km}
                       </span>
                       <span className="block text-[10px] text-[#7A8277] dark:text-slate-400 tabular-nums">
                         ({language === 'bn' ? 'প্রতি' : 'every'}{' '}
@@ -272,7 +272,7 @@ export const ServiceReminderView: React.FC<ServiceReminderViewProps> = ({
                           {log.serviceItemName}
                         </h4>
                         <div className="text-xs text-[#6F766C] dark:text-slate-400 mt-0.5 tabular-nums truncate">
-                          {formatNumber(log.odometer, language, numberFormat)} {t.km} ·{' '}
+                          {formatOdometer(log.odometer, language, numberFormat)} {t.km} ·{' '}
                           {formatDate(log.date, language)}
                         </div>
                         {log.notes && (

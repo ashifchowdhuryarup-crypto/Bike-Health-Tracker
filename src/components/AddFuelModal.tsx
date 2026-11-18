@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FuelEntry, Bike, Language, NumberFormatType, FuelPriceSettings } from '../types';
-import { translations, formatNumber } from '../utils/i18n';
+import { translations, formatNumber, formatCurrency, formatOdometer, getLocalDateString } from '../utils/i18n';
 import { isFuelEntryAfterReset } from '../utils/calculations';
 import { Fuel, X, AlertCircle, Sparkles } from 'lucide-react';
 
@@ -39,8 +39,8 @@ export const AddFuelModal: React.FC<AddFuelModalProps> = ({
     bike.initialOdometer
   );
 
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [odometer, setOdometer] = useState<string>((maxOdo + 150).toString());
+  const [date, setDate] = useState(() => getLocalDateString());
+  const [odometer, setOdometer] = useState<string>((Math.round((maxOdo + 150) * 100) / 100).toString());
   const [fuelType, setFuelType] = useState<'Octane' | 'Petrol'>('Octane');
 
   const [unitPrice, setUnitPrice] = useState<string>(
@@ -57,22 +57,19 @@ export const AddFuelModal: React.FC<AddFuelModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setOdometer((maxOdo + 150).toString());
-      setDate(new Date().toISOString().split('T')[0]);
+      const defaultRate = fuelPrices?.octane || 165;
+      setDate(getLocalDateString());
+      setOdometer((Math.round((maxOdo + 150) * 100) / 100).toString());
+      setFuelType('Octane');
+      setUnitPrice(defaultRate.toString());
+      setLitres('10.0');
+      setTotalPrice(Math.round(10.0 * defaultRate).toString());
+      setIsFullTank(true);
+      setSaveAsDefault(false);
+      setNotes('');
       setError(null);
     }
-  }, [isOpen, maxOdo]);
-
-  useEffect(() => {
-    if (isOpen) {
-      const defaultRate = fuelType === 'Octane' ? fuelPrices?.octane || 165 : fuelPrices?.petrol || 155;
-      setUnitPrice(defaultRate.toString());
-      const lit = parseFloat(litres);
-      if (!isNaN(lit) && lit > 0) {
-        setTotalPrice(Math.round(lit * defaultRate).toString());
-      }
-    }
-  }, [isOpen, fuelType, fuelPrices]);
+  }, [isOpen, maxOdo, fuelPrices]);
 
   const handleFuelTypeChange = (newType: 'Octane' | 'Petrol') => {
     setFuelType(newType);
@@ -258,7 +255,7 @@ export const AddFuelModal: React.FC<AddFuelModalProps> = ({
               </label>
               <span className="text-[11px] text-[#6F766C] dark:text-slate-400 tabular-nums">
                 {language === 'bn' ? 'আগের ওডো:' : 'Prev:'}{' '}
-                {formatNumber(maxOdo, language, numberFormat)} {t.km}
+                {formatOdometer(maxOdo, language, numberFormat)} {t.km}
               </span>
             </div>
             <div className="relative">
@@ -325,8 +322,11 @@ export const AddFuelModal: React.FC<AddFuelModalProps> = ({
                 <span>{t.autoCalculatedHint}:</span>
               </span>
               <span className="font-bold text-[#141912] dark:text-white">
-                {litres} {t.litres} × ৳{unitPrice} ={' '}
-                <span className="text-[#5C9E00] dark:text-[#A3EC38]">৳{totalPrice}</span>
+                {formatNumber(parseFloat(litres), language, numberFormat, 2)} {t.litres} ×{' '}
+                {formatCurrency(parseFloat(unitPrice), language, numberFormat, 1)} ={' '}
+                <span className="text-[#5C9E00] dark:text-[#A3EC38]">
+                  {formatCurrency(parseFloat(totalPrice) || 0, language, numberFormat)}
+                </span>
               </span>
             </div>
           )}

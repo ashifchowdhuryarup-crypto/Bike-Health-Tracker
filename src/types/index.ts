@@ -77,6 +77,63 @@ export interface ServiceUrgency {
   statusTextBn: string;
 }
 
-export type TabType = 'home' | 'fuel' | 'service' | 'reports';
+export interface RidePoint {
+  lat: number;
+  lng: number;
+  timestamp: number; // Unix ms
+  speedKmh?: number;
+  accuracyM?: number;
+}
+
+export interface RideLocation {
+  lat: number;
+  lng: number;
+  label?: string;
+}
+
+export interface RideRecord {
+  id: string;
+  bikeId: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // ISO timestamp
+  endTime: string; // ISO timestamp
+  distanceKm: number;
+  durationSec: number;
+  avgSpeedKmh: number;
+  maxSpeedKmh: number;
+  startLocation: RideLocation;
+  endLocation: RideLocation;
+  route: RidePoint[];
+  odometerBefore: number;
+  odometerAfter: number;
+  odometerApplied: boolean;
+  createdAt: string;
+}
+
+export interface ActiveRideSession {
+  sessionId: string;
+  bikeId: string;
+  startTime: string; // ISO timestamp
+  lastUpdatedAt: string; // ISO timestamp
+  distanceKm: number;
+  maxSpeedKmh: number;
+  currentSpeedKmh: number;
+  startLocation: RideLocation | null;
+  route: RidePoint[];
+  odometerAtStart: number;
+  lastAcceptedPoint: RidePoint | null;
+}
+
+export type GpsStatus =
+  | 'idle'
+  | 'acquiring'
+  | 'tracking'
+  | 'signal_lost'
+  | 'permission_denied'
+  | 'unsupported'
+  | 'error';
+
+export type TabType = 'home' | 'map' | 'rides' | 'odometer' | 'fuel' | 'service' | 'reports';
 export type Language = 'bn' | 'en';
 export type NumberFormatType = 'bn' | 'en';
+
