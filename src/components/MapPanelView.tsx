@@ -40,6 +40,8 @@ import {
   ArrowLeft,
   Gauge,
   ExternalLink,
+  Moon,
+  Lock,
 } from 'lucide-react';
 
 interface MapPanelViewProps {
@@ -50,6 +52,7 @@ interface MapPanelViewProps {
   gpsStatus: GpsStatus;
   gpsError: string | null;
   isOnline: boolean;
+  isWakeLockActive?: boolean;
   wasRecovered: boolean;
   hasQuotaError: boolean;
   sdkLoadFailed: boolean;
@@ -59,6 +62,7 @@ interface MapPanelViewProps {
   onStartRide: () => void;
   onStopAndSaveRide: () => void;
   onRequestGpsRetry: () => void;
+  onRequestFreshFix?: () => void;
   onReloadMaps: () => void;
   onDismissRecoveredBanner: () => void;
   onClearLastSavedRide: () => void;
@@ -589,6 +593,7 @@ export const MapPanelView: React.FC<MapPanelViewProps> = ({
   gpsStatus,
   gpsError,
   isOnline,
+  isWakeLockActive = false,
   wasRecovered,
   hasQuotaError,
   sdkLoadFailed,
@@ -598,6 +603,7 @@ export const MapPanelView: React.FC<MapPanelViewProps> = ({
   onStartRide,
   onStopAndSaveRide,
   onRequestGpsRetry,
+  onRequestFreshFix,
   onReloadMaps,
   onDismissRecoveredBanner,
   onClearLastSavedRide,
@@ -612,6 +618,43 @@ export const MapPanelView: React.FC<MapPanelViewProps> = ({
   const [autoFollow, setAutoFollow] = useState(true);
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
+  const [isPocketMode, setIsPocketMode] = useState(false);
+  const [unlockProgress, setUnlockProgress] = useState(0);
+  const unlockTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!activeRide) {
+      setIsPocketMode(false);
+      setUnlockProgress(0);
+    }
+  }, [activeRide]);
+
+  const stopUnlockHold = useCallback(() => {
+    if (unlockTimerRef.current !== null) {
+      window.clearInterval(unlockTimerRef.current);
+      unlockTimerRef.current = null;
+    }
+    setUnlockProgress(0);
+  }, []);
+
+  const startUnlockHold = useCallback(() => {
+    stopUnlockHold();
+    const startAt = Date.now();
+    const holdMs = 1100;
+    unlockTimerRef.current = window.setInterval(() => {
+      const elapsed = Date.now() - startAt;
+      const pct = Math.min(100, Math.round((elapsed / holdMs) * 100));
+      setUnlockProgress(pct);
+      if (pct >= 100) {
+        stopUnlockHold();
+        setIsPocketMode(false);
+      }
+    }, 30);
+  }, [stopUnlockHold]);
+
+  useEffect(() => {
+    return () => stopUnlockHold();
+  }, [stopUnlockHold]);
 
   const canRenderGoogleMaps = Boolean(apiKey) && isOnline && !hasQuotaError && !sdkLoadFailed;
   const showStreetMap = !canRenderGoogleMaps && isOnline;
@@ -1072,15 +1115,46 @@ export const MapPanelView: React.FC<MapPanelViewProps> = ({
                 </span>
               </div>
 
-              {/* Single STOP Action Button with confirmation dialog */}
-              <button
-                type="button"
-                onClick={() => setIsStopConfirmOpen(true)}
-                className="w-full min-h-[54px] rounded-full bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white font-extrabold text-base shadow-[0_6px_18px_rgba(225,29,72,0.28)] flex items-center justify-center gap-2.5 transition"
-              >
-                <Square className="w-5 h-5 fill-current" />
-                <span>{t.stopRideLabel}</span>
-              </button>
+              {/* Android Screen-On / Waypoint Counter Notice */}
+              <div className="rounded-2xl bg-[#F6F7F4] dark:bg-white/[0.04] border border-black/[0.05] dark:border-white/[0.07] px-3 py-2 flex items-start justify-between gap-2 text-[11px] text-[#4C5548] dark:text-slate-300">
+                <span className="leading-snug">
+                  {language === 'bn'
+                    ? 'পকেটে রাখতে নিচের পকেট মোড অন করুন (পাওয়ার বাটন দিয়ে লক করলে ব্রাউজার GPS বন্ধ হয়)।'
+                    : 'Use Pocket Mode below before putting phone in pocket (Power-button lock pauses browser GPS).'}
+                </span>
+                <span className="shrink-0 font-bold tabular-nums text-[#141912] dark:text-white">
+                  {formatNumber(activeRide.route.length, language, numberFormat)} pts
+                  {isWakeLockActive ? ' · ON' : ''}
+                </span>
+              </div>
+
+              {/* Pocket Mode + STOP Actions */}
+              <div className="space-y-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsPocketMode(true)}
+                  className="w-full min-h-[46px] rounded-full bg-[#141912] dark:bg-white/[0.08] hover:opacity-95 active:scale-[0.98] text-white font-bold text-xs border border-black/10 dark:border-white/10 flex items-center justify-center gap-2 transition"
+                >
+                  <Moon className="w-4 h-4 text-[#9AE62E]" />
+                  <span>
+                    {language === 'bn'
+                      ? 'পকেট মোড চালু করুন (কালো স্ক্রিন ও টাচ লক)'
+                      : 'Pocket Mode (Black Screen & Touch Lock)'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onRequestFreshFix?.();
+                    setIsStopConfirmOpen(true);
+                  }}
+                  className="w-full min-h-[54px] rounded-full bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white font-extrabold text-base shadow-[0_6px_18px_rgba(225,29,72,0.28)] flex items-center justify-center gap-2.5 transition"
+                >
+                  <Square className="w-5 h-5 fill-current" />
+                  <span>{t.stopRideLabel}</span>
+                </button>
+              </div>
             </>
           ) : (
             <div className="space-y-3">
@@ -1120,11 +1194,74 @@ export const MapPanelView: React.FC<MapPanelViewProps> = ({
         title={t.stopRideConfirmTitle}
         message={`${t.stopRideConfirmMsg} (${
           activeRide ? formatOdometer(activeRide.distanceKm, language, numberFormat) : '0'
-        } ${t.km})`}
+        } ${t.km})${
+          activeRide && activeRide.route.length <= 3 && elapsedSeconds >= 60
+            ? language === 'bn'
+              ? ` — সতর্কতা: মাত্র ${formatNumber(activeRide.route.length, language, numberFormat)}টি GPS পয়েন্ট পাওয়া গেছে (স্ক্রিন বন্ধ ছিল সম্ভবত)। সেভ করার পর হোমে "Update Odo" দিয়ে বাইকের আসল মিটার মিলিয়ে নিতে পারবেন।`
+              : ` — Note: Only ${activeRide.route.length} GPS points recorded (screen may have been locked). You can match your bike's exact meter afterwards using Update Odo on Home.`
+            : ''
+        }`}
         confirmText={t.confirmStopSave}
         cancelText={t.keepRiding}
         isDestructive={false}
       />
+
+      {/* AMOLED Black Pocket Mode Overlay (Keeps browser foreground GPS running with near-zero OLED battery & touch lock) */}
+      {isPocketMode && activeRide && (
+        <div
+          className="fixed inset-0 z-[100] bg-black text-white select-none touch-none flex flex-col items-center justify-between px-6 py-12"
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <div className="flex items-center gap-2 text-[11px] font-semibold text-white/40">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                gpsStatus === 'tracking' ? 'bg-[#9AE62E]/70 animate-pulse' : 'bg-amber-500/70'
+              }`}
+            />
+            <span className="tabular-nums">
+              {formatNumber(activeRide.route.length, language, numberFormat)} GPS pts
+              {isWakeLockActive ? ' · Screen Stay-Awake' : ''}
+            </span>
+          </div>
+
+          <div className="text-center space-y-3 max-w-xs">
+            <p className="text-4xl font-extrabold tabular-nums text-white/35">
+              {formatOdometer(activeRide.distanceKm, language, numberFormat)}{' '}
+              <span className="text-lg font-bold">{t.km}</span>
+            </p>
+            <p className="text-lg font-bold tabular-nums text-white/30">
+              {formatDuration(elapsedSeconds, language, numberFormat)}
+            </p>
+            <p className="text-xs text-white/30 leading-relaxed pt-3">
+              {language === 'bn'
+                ? 'পাওয়ার বাটন না চেপে ফোন পকেটে রাখুন — কালো স্ক্রিনে ব্যাটারি সাশ্রয় হয় এবং লাইভ GPS চলতে থাকে।'
+                : 'Slide phone into pocket without pressing the Power button — black screen saves battery while live GPS keeps tracking.'}
+            </p>
+          </div>
+
+          <div className="w-full max-w-xs">
+            <button
+              type="button"
+              onPointerDown={startUnlockHold}
+              onPointerUp={stopUnlockHold}
+              onPointerLeave={stopUnlockHold}
+              onPointerCancel={stopUnlockHold}
+              className="relative w-full min-h-[56px] rounded-full border border-white/15 bg-white/[0.04] overflow-hidden flex items-center justify-center gap-2 text-xs font-bold text-white/60 active:scale-[0.99]"
+            >
+              <div
+                className="absolute inset-y-0 left-0 bg-[#9AE62E]/30 transition-none"
+                style={{ width: `${unlockProgress}%` }}
+              />
+              <Lock className="w-4 h-4 relative z-10" />
+              <span className="relative z-10">
+                {language === 'bn'
+                  ? 'আনলক করতে ১ সেকেন্ড চেপে ধরুন'
+                  : 'Hold 1s to Unlock Screen'}
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -39,6 +39,7 @@ export function useRideTracker({
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
   const [lastSavedRide, setLastSavedRide] = useState<RideRecord | null>(null);
+  const [isWakeLockActive, setIsWakeLockActive] = useState<boolean>(false);
 
   const [watchRestartCount, setWatchRestartCount] = useState<number>(0);
 
@@ -49,6 +50,7 @@ export function useRideTracker({
   const lastFixAtRef = useRef<number>(Date.now());
   const watchIdRef = useRef<number | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const pollInFlightRef = useRef<boolean>(false);
   const finishingLockRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -128,15 +130,28 @@ export function useRideTracker({
       }
       wakeLockRef.current = null;
     }
+    setIsWakeLockActive(false);
   }, []);
 
   const requestWakeLock = useCallback(async () => {
     try {
+      if (wakeLockRef.current && !wakeLockRef.current.released) {
+        setIsWakeLockActive(true);
+        return;
+      }
       if ('wakeLock' in navigator && navigator.wakeLock) {
-        wakeLockRef.current = await navigator.wakeLock.request('screen');
+        const sentinel = await navigator.wakeLock.request('screen');
+        wakeLockRef.current = sentinel;
+        setIsWakeLockActive(true);
+        sentinel.addEventListener('release', () => {
+          if (wakeLockRef.current === sentinel) {
+            wakeLockRef.current = null;
+          }
+          setIsWakeLockActive(false);
+        });
       }
     } catch {
-      // Best-effort only; ignore if disallowed
+      setIsWakeLockActive(false);
     }
   }, []);
 
@@ -195,6 +210,30 @@ export function useRideTracker({
     }
   }, []);
 
+  const requestFreshFix = useCallback(() => {
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return;
+    if (pollInFlightRef.current) return;
+    pollInFlightRef.current = true;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        pollInFlightRef.current = false;
+        handlePositionSuccess(pos);
+      },
+      (err) => {
+        pollInFlightRef.current = false;
+        // Only surface permission_denied from background polls; watchPosition handles transient timeouts
+        if (err.code === 1) {
+          handlePositionError(err);
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 8000,
+      }
+    );
+  }, [handlePositionError, handlePositionSuccess]);
+
   const shouldWatchGps = activeRide !== null || isMapTabActive;
 
   // Battery-conscious GPS watcher: active ONLY while riding OR viewing the GPS Map panel.
@@ -222,8 +261,8 @@ export function useRideTracker({
       handlePositionError,
       {
         enableHighAccuracy: true,
-        maximumAge: 5000,
-        timeout: 30000,
+        maximumAge: 0,
+        timeout: 20000,
       }
     );
     watchIdRef.current = watchId;
@@ -266,11 +305,15 @@ export function useRideTracker({
     };
   }, [shouldWatchGps]);
 
-  // 1-second ride clock, periodic 5-second storage checkpointing & signal-loss monitor
+  // 1-second ride clock, 4-second active GPS poll heartbeat, 5-second storage checkpoint & WakeLock
   useEffect(() => {
     if (!activeRide) {
       setElapsedSeconds(0);
       return;
+    }
+
+    if (document.visibilityState === 'visible') {
+      requestWakeLock();
     }
 
     const startMs = new Date(activeRide.startTime).getTime();
@@ -281,8 +324,19 @@ export function useRideTracker({
       tickCount += 1;
       setElapsedSeconds(Math.max(0, Math.round((Date.now() - startMs) / 1000)));
 
-      // Allow up to 45s while visible (handles red-light pauses without false alarms)
-      if (document.visibilityState !== 'hidden' && Date.now() - lastFixAtRef.current > 45000) {
+      const silenceMs = Date.now() - lastFixAtRef.current;
+
+      // Active 4s GPS poll fallback whenever watchPosition lags while foregrounded
+      if (
+        document.visibilityState === 'visible' &&
+        tickCount % 4 === 0 &&
+        silenceMs >= 3500
+      ) {
+        requestFreshFix();
+      }
+
+      // Mark signal_lost if no GPS fix arrives for >20s while visible
+      if (document.visibilityState !== 'hidden' && silenceMs > 20000) {
         setGpsStatus((prev) =>
           prev === 'permission_denied' || prev === 'error' || prev === 'unsupported'
             ? prev
@@ -301,23 +355,24 @@ export function useRideTracker({
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [activeRide?.sessionId, activeRide?.startTime]);
+  }, [activeRide?.sessionId, activeRide?.startTime, requestFreshFix, requestWakeLock]);
 
-  // Auto-recover hardware GPS watcher if signal drops or offline cold-fix times out
+  // Auto-recover hardware GPS watcher quickly if signal drops or watchPosition stalls
   useEffect(() => {
     if (!shouldWatchGps) return;
     if (gpsStatus !== 'signal_lost' && gpsStatus !== 'error') return;
 
     const retryTimer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
+        requestFreshFix();
         setWatchRestartCount((c) => c + 1);
       }
-    }, 20000);
+    }, 10000);
 
     return () => window.clearInterval(retryTimer);
-  }, [shouldWatchGps, gpsStatus]);
+  }, [shouldWatchGps, gpsStatus, requestFreshFix]);
 
-  // Re-acquire screen wake lock and checkpoint immediately when backgrounded/closed on Android
+  // Re-acquire screen wake lock, grab immediate GPS fix on wake/resume, and checkpoint on hide
   useEffect(() => {
     const saveCheckpointNow = () => {
       if (activeRideRef.current) {
@@ -330,21 +385,38 @@ export function useRideTracker({
       }
     };
 
-    const handleVisibility = () => {
+    const handleResume = () => {
       if (document.visibilityState === 'visible' && activeRideRef.current) {
         requestWakeLock();
+        const startMs = new Date(activeRideRef.current.startTime).getTime();
+        setElapsedSeconds(Math.max(0, Math.round((Date.now() - startMs) / 1000)));
+        if (Date.now() - lastFixAtRef.current > 3500) {
+          requestFreshFix();
+          setWatchRestartCount((c) => c + 1);
+        }
       } else if (document.visibilityState === 'hidden') {
         saveCheckpointNow();
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibility);
+    const handleWindowFocus = () => {
+      if (activeRideRef.current) {
+        requestWakeLock();
+        if (Date.now() - lastFixAtRef.current > 3500) {
+          requestFreshFix();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleResume);
+    window.addEventListener('focus', handleWindowFocus);
     window.addEventListener('pagehide', saveCheckpointNow);
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibility);
+      document.removeEventListener('visibilitychange', handleResume);
+      window.removeEventListener('focus', handleWindowFocus);
       window.removeEventListener('pagehide', saveCheckpointNow);
     };
-  }, [requestWakeLock]);
+  }, [requestWakeLock, requestFreshFix]);
 
   const startRide = useCallback(() => {
     // Guard against duplicate ride sessions
@@ -434,6 +506,7 @@ export function useRideTracker({
     gpsStatus,
     gpsError,
     isOnline,
+    isWakeLockActive,
     wasRecovered,
     lastSavedRide,
     clearLastSavedRide,
@@ -442,5 +515,6 @@ export function useRideTracker({
     stopAndSaveRide,
     resetRideTracker,
     requestGpsRetry,
+    requestFreshFix,
   };
 }

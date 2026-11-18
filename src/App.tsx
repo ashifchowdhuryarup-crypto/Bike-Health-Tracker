@@ -859,6 +859,7 @@ export default function App() {
                 gpsStatus={rideTracker.gpsStatus}
                 gpsError={rideTracker.gpsError}
                 isOnline={rideTracker.isOnline}
+                isWakeLockActive={rideTracker.isWakeLockActive}
                 wasRecovered={rideTracker.wasRecovered}
                 hasQuotaError={hasQuotaError}
                 sdkLoadFailed={sdkLoadFailed}
@@ -868,6 +869,7 @@ export default function App() {
                 onStartRide={rideTracker.startRide}
                 onStopAndSaveRide={handleStopAndSaveRide}
                 onRequestGpsRetry={rideTracker.requestGpsRetry}
+                onRequestFreshFix={rideTracker.requestFreshFix}
                 onReloadMaps={handleReloadMaps}
                 onDismissRecoveredBanner={rideTracker.dismissRecoveredBanner}
                 onClearLastSavedRide={rideTracker.clearLastSavedRide}

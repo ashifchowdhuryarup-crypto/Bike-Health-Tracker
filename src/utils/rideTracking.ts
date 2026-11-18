@@ -169,11 +169,12 @@ export function processIncomingGpsPoint(
       : MIN_STEP_KM;
 
   if (deltaKm < effectiveDeadbandKm) {
+    const shouldZeroSpeed = deltaMs >= 4000 || incoming.speedKmh === 0;
     return {
       session: {
         ...session,
         lastUpdatedAt: nowIso,
-        currentSpeedKmh: 0,
+        currentSpeedKmh: shouldZeroSpeed ? 0 : session.currentSpeedKmh,
       },
       accepted: false,
       reason: 'stationary_drift',
@@ -181,13 +182,16 @@ export function processIncomingGpsPoint(
     };
   }
 
-  const derivedSpeed =
+  const hasReliableSensorSpeed =
     incoming.speedKmh !== undefined &&
     Number.isFinite(incoming.speedKmh) &&
     incoming.speedKmh >= 0 &&
-    incoming.speedKmh <= MAX_REALISTIC_SPEED_KMH
-      ? roundTo1(incoming.speedKmh)
-      : roundTo1(Math.min(MAX_REALISTIC_SPEED_KMH, impliedSpeedKmh));
+    incoming.speedKmh <= MAX_REALISTIC_SPEED_KMH &&
+    (incoming.speedKmh > 0 || impliedSpeedKmh <= 3);
+
+  const derivedSpeed = hasReliableSensorSpeed
+    ? roundTo1(incoming.speedKmh!)
+    : roundTo1(Math.min(MAX_REALISTIC_SPEED_KMH, impliedSpeedKmh));
 
   const nextDistance = session.distanceKm + deltaKm;
   const nextMaxSpeed = Math.max(session.maxSpeedKmh, derivedSpeed);
