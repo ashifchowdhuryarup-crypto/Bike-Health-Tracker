@@ -95,7 +95,7 @@ export default function App() {
   const [canMountMapsProvider, setCanMountMapsProvider] = useState<boolean>(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine
   );
-  const [mapsProviderKey, setMapsProviderKey] = useState(0);
+  const [hasMountedMap, setHasMountedMap] = useState(false);
   const [isAddFuelModalOpen, setIsAddFuelModalOpen] = useState(false);
   const [isMarkServiceModalOpen, setIsMarkServiceModalOpen] = useState(false);
   const [markServicePreselectId, setMarkServicePreselectId] = useState<string | undefined>(undefined);
@@ -173,12 +173,6 @@ export default function App() {
     const handleQuotaExceeded = () => setHasQuotaError(true);
     const handleNetworkOnline = () => {
       setCanMountMapsProvider(true);
-      setSdkLoadFailed((failed) => {
-        if (failed) {
-          setMapsProviderKey((k) => k + 1);
-        }
-        return false;
-      });
     };
     window.addEventListener('gmp-quota-exceeded', handleQuotaExceeded);
     window.addEventListener('online', handleNetworkOnline);
@@ -190,6 +184,7 @@ export default function App() {
 
   const handleSdkError = useCallback(() => setSdkLoadFailed(true), []);
   const handleSdkReady = useCallback(() => setSdkLoadFailed(false), []);
+  const handleClearInspectedRide = useCallback(() => setInspectedRide(null), []);
   const handleReloadMaps = useCallback(() => {
     window.location.reload();
   }, []);
@@ -415,6 +410,16 @@ export default function App() {
     isMapTabActive: currentTab === 'map',
     onRideCompleted: handleRideCompleted,
   });
+
+  useEffect(() => {
+    if (activeBike && (currentTab === 'map' || rideTracker.activeRide !== null)) {
+      setHasMountedMap(true);
+    }
+  }, [activeBike, currentTab, rideTracker.activeRide]);
+
+  const handleStopAndSaveRide = useCallback(() => {
+    rideTracker.stopAndSaveRide();
+  }, [rideTracker.stopAndSaveRide]);
 
   const handleDeleteRide = (rideId: string) => {
     const updated = rideHistory.filter((r) => r.id !== rideId);
@@ -775,6 +780,7 @@ export default function App() {
     setServiceLogs([]);
     setRideHistory([]);
     setInspectedRide(null);
+    setHasMountedMap(false);
     setIsOnboardingOpen(true);
   };
 
@@ -843,33 +849,34 @@ export default function App() {
             />
           )}
 
-          {activeBike && currentTab === 'map' && (
-            <MapPanelView
-              bike={activeBike}
-              activeRide={rideTracker.activeRide}
-              currentPosition={rideTracker.currentPosition}
-              elapsedSeconds={rideTracker.elapsedSeconds}
-              gpsStatus={rideTracker.gpsStatus}
-              gpsError={rideTracker.gpsError}
-              isOnline={rideTracker.isOnline}
-              wasRecovered={rideTracker.wasRecovered}
-              hasQuotaError={hasQuotaError}
-              sdkLoadFailed={sdkLoadFailed}
-              lastSavedRide={rideTracker.lastSavedRide}
-              inspectedRide={inspectedRide}
-              onClearInspectedRide={() => setInspectedRide(null)}
-              onStartRide={rideTracker.startRide}
-              onStopAndSaveRide={() => {
-                rideTracker.stopAndSaveRide();
-              }}
-              onRequestGpsRetry={rideTracker.requestGpsRetry}
-              onReloadMaps={handleReloadMaps}
-              onDismissRecoveredBanner={rideTracker.dismissRecoveredBanner}
-              onClearLastSavedRide={rideTracker.clearLastSavedRide}
-              language={language}
-              numberFormat={numberFormat}
-              darkMode={darkMode}
-            />
+          {activeBike && hasMountedMap && (
+            <div className={currentTab === 'map' ? 'block' : 'hidden'}>
+              <MapPanelView
+                bike={activeBike}
+                activeRide={rideTracker.activeRide}
+                currentPosition={rideTracker.currentPosition}
+                elapsedSeconds={rideTracker.elapsedSeconds}
+                gpsStatus={rideTracker.gpsStatus}
+                gpsError={rideTracker.gpsError}
+                isOnline={rideTracker.isOnline}
+                wasRecovered={rideTracker.wasRecovered}
+                hasQuotaError={hasQuotaError}
+                sdkLoadFailed={sdkLoadFailed}
+                lastSavedRide={rideTracker.lastSavedRide}
+                inspectedRide={inspectedRide}
+                onClearInspectedRide={handleClearInspectedRide}
+                onStartRide={rideTracker.startRide}
+                onStopAndSaveRide={handleStopAndSaveRide}
+                onRequestGpsRetry={rideTracker.requestGpsRetry}
+                onReloadMaps={handleReloadMaps}
+                onDismissRecoveredBanner={rideTracker.dismissRecoveredBanner}
+                onClearLastSavedRide={rideTracker.clearLastSavedRide}
+                language={language}
+                numberFormat={numberFormat}
+                darkMode={darkMode}
+                isTabVisible={currentTab === 'map'}
+              />
+            </div>
           )}
 
           {activeBike && currentTab === 'rides' && (
@@ -1068,7 +1075,6 @@ export default function App() {
 
   return (
     <APIProvider
-      key={mapsProviderKey}
       apiKey={mapsApiKey}
       language={language === 'bn' ? 'bn' : 'en'}
       region="BD"

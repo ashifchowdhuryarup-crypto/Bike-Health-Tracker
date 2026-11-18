@@ -67,20 +67,52 @@ export function useRideTracker({
     currentPositionRef.current = currentPosition;
   }, [currentPosition]);
 
-  // Monitor internet connectivity cleanly without blocking GPS
+  // Monitor internet connectivity with hysteresis so brief signal dips don't cause map flicker/re-renders
   useEffect(() => {
-    const syncNetworkStatus = () => setIsOnline(navigator.onLine);
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        syncNetworkStatus();
+    let offlineTimer: number | null = null;
+    let onlineTimer: number | null = null;
+
+    const clearTimers = () => {
+      if (offlineTimer !== null) {
+        window.clearTimeout(offlineTimer);
+        offlineTimer = null;
+      }
+      if (onlineTimer !== null) {
+        window.clearTimeout(onlineTimer);
+        onlineTimer = null;
       }
     };
+
+    const scheduleNetworkState = (nextOnline: boolean) => {
+      clearTimers();
+      if (nextOnline) {
+        onlineTimer = window.setTimeout(() => {
+          onlineTimer = null;
+          setIsOnline((prev) => (prev ? prev : true));
+        }, 250);
+      } else {
+        offlineTimer = window.setTimeout(() => {
+          offlineTimer = null;
+          if (!navigator.onLine) {
+            setIsOnline((prev) => (prev ? false : prev));
+          }
+        }, 2500);
+      }
+    };
+
+    const handleOnline = () => scheduleNetworkState(true);
+    const handleOffline = () => scheduleNetworkState(false);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        scheduleNetworkState(navigator.onLine);
+      }
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
+      clearTimers();
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       document.removeEventListener('visibilitychange', handleVisibility);
@@ -392,6 +424,9 @@ export function useRideTracker({
     });
   }, [handlePositionError, handlePositionSuccess]);
 
+  const clearLastSavedRide = useCallback(() => setLastSavedRide(null), []);
+  const dismissRecoveredBanner = useCallback(() => setWasRecovered(false), []);
+
   return {
     activeRide,
     currentPosition,
@@ -401,8 +436,8 @@ export function useRideTracker({
     isOnline,
     wasRecovered,
     lastSavedRide,
-    clearLastSavedRide: () => setLastSavedRide(null),
-    dismissRecoveredBanner: () => setWasRecovered(false),
+    clearLastSavedRide,
+    dismissRecoveredBanner,
     startRide,
     stopAndSaveRide,
     resetRideTracker,

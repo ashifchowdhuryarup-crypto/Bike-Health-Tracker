@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Map as GoogleMap,
   AdvancedMarker,
@@ -27,6 +27,7 @@ import {
 } from '../utils/i18n';
 import { isValidCoordinatePair, MAX_ACCEPTABLE_ACCURACY_M } from '../utils/rideTracking';
 import { ConfirmDialog } from './ConfirmDialog';
+import { OnlineStreetMap } from './OnlineStreetMap';
 import {
   Play,
   Square,
@@ -64,6 +65,7 @@ interface MapPanelViewProps {
   language: Language;
   numberFormat: NumberFormatType;
   darkMode: boolean;
+  isTabVisible?: boolean;
 }
 
 const DEFAULT_DHAKA_CENTER = { lat: 23.8103, lng: 90.4125 };
@@ -73,6 +75,7 @@ interface MapCameraControllerProps {
   inspectedRide: RideRecord | null;
   autoFollow: boolean;
   recenterSignal: number;
+  isTabVisible: boolean;
 }
 
 const MapCameraController: React.FC<MapCameraControllerProps> = ({
@@ -80,14 +83,22 @@ const MapCameraController: React.FC<MapCameraControllerProps> = ({
   inspectedRide,
   autoFollow,
   recenterSignal,
+  isTabVisible,
 }) => {
   const map = useMap();
   const coreLib = useMapsLibrary('core');
   const lastHandledRecenterRef = useRef(0);
+  const lastFittedInspectedIdRef = useRef<string | null>(null);
 
-  // Fit bounds once when opening or changing inspected historical ride
+  // Fit bounds once per inspected ride when tab is visible
   useEffect(() => {
-    if (!map || !inspectedRide) return;
+    if (!inspectedRide) {
+      lastFittedInspectedIdRef.current = null;
+      return;
+    }
+    if (!map || !isTabVisible) return;
+    if (lastFittedInspectedIdRef.current === inspectedRide.id) return;
+    lastFittedInspectedIdRef.current = inspectedRide.id;
 
     const validPoints: { lat: number; lng: number }[] = [];
     if (isValidCoordinatePair(inspectedRide.startLocation)) {
@@ -129,11 +140,11 @@ const MapCameraController: React.FC<MapCameraControllerProps> = ({
     } else {
       map.panTo(first);
     }
-  }, [map, coreLib, inspectedRide]);
+  }, [map, coreLib, inspectedRide, isTabVisible]);
 
-  // Follow live position only when autoFollow is active or recenterSignal explicitly increments
+  // Follow live position only when visible and autoFollow is active or recenterSignal increments
   useEffect(() => {
-    if (!map || inspectedRide || !focusPoint) return;
+    if (!map || !isTabVisible || inspectedRide || !focusPoint) return;
 
     const recenterTriggered = recenterSignal > lastHandledRecenterRef.current;
     if (recenterTriggered) {
@@ -147,10 +158,147 @@ const MapCameraController: React.FC<MapCameraControllerProps> = ({
         map.setZoom(16);
       }
     }
-  }, [map, focusPoint, inspectedRide, autoFollow, recenterSignal]);
+  }, [map, focusPoint, inspectedRide, autoFollow, recenterSignal, isTabVisible]);
 
   return null;
 };
+
+interface GoogleMapCanvasProps {
+  focusPoint: { lat: number; lng: number } | null;
+  liveStartPoint: { lat: number; lng: number } | null;
+  routePath: { lat: number; lng: number }[];
+  inspectedRide: RideRecord | null;
+  darkMode: boolean;
+  autoFollow: boolean;
+  recenterSignal: number;
+  isTabVisible: boolean;
+  gpsStatus: GpsStatus;
+  onUserDragMap: () => void;
+  onRecenter: () => void;
+  startPointLabel: string;
+  endPointLabel: string;
+  gpsTrackingActiveLabel: string;
+  gpsAcquiringLabel: string;
+  recenterLabel: string;
+}
+
+const GoogleMapCanvas = React.memo<GoogleMapCanvasProps>(({
+  focusPoint,
+  liveStartPoint,
+  routePath,
+  inspectedRide,
+  darkMode,
+  autoFollow,
+  recenterSignal,
+  isTabVisible,
+  gpsStatus,
+  onUserDragMap,
+  onRecenter,
+  startPointLabel,
+  endPointLabel,
+  gpsTrackingActiveLabel,
+  gpsAcquiringLabel,
+  recenterLabel,
+}) => {
+  const initialCenterRef = useRef<{ lat: number; lng: number }>(focusPoint || DEFAULT_DHAKA_CENTER);
+
+  return (
+    <div className="h-[50vh] min-h-[340px] md:h-[58vh] w-full relative">
+      <GoogleMap
+        mapId="DEMO_MAP_ID"
+        reuseMaps
+        internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
+        colorScheme={darkMode ? ColorScheme.DARK : ColorScheme.LIGHT}
+        defaultCenter={initialCenterRef.current}
+        defaultZoom={15}
+        gestureHandling="greedy"
+        streetViewControl={false}
+        mapTypeControl={false}
+        fullscreenControl={false}
+        onDragstart={onUserDragMap}
+        className="w-full h-full"
+      >
+        <MapCameraController
+          focusPoint={focusPoint}
+          inspectedRide={inspectedRide}
+          autoFollow={autoFollow}
+          recenterSignal={recenterSignal}
+          isTabVisible={isTabVisible}
+        />
+
+        {routePath.length >= 2 && (
+          <Polyline
+            path={routePath}
+            strokeColor={inspectedRide ? '#2563EB' : '#65A30D'}
+            strokeOpacity={0.95}
+            strokeWeight={5}
+            geodesic
+          />
+        )}
+
+        {liveStartPoint && (
+          <AdvancedMarker
+            position={{ lat: liveStartPoint.lat, lng: liveStartPoint.lng }}
+            title={startPointLabel}
+          >
+            <Pin
+              background="#16A34A"
+              borderColor="#14532D"
+              glyphColor="#FFFFFF"
+              scale={0.9}
+            />
+          </AdvancedMarker>
+        )}
+
+        {focusPoint && (
+          <AdvancedMarker
+            position={focusPoint}
+            title={inspectedRide ? endPointLabel : gpsTrackingActiveLabel}
+          >
+            {inspectedRide ? (
+              <Pin
+                background="#DC2626"
+                borderColor="#7F1D1D"
+                glyphColor="#FFFFFF"
+                scale={0.95}
+              />
+            ) : (
+              <div className="relative flex items-center justify-center">
+                <span className="absolute w-9 h-9 rounded-full bg-[#9AE62E]/45 animate-ping" />
+                <div className="w-6 h-6 rounded-full bg-[#141912] border-[3px] border-[#9AE62E] shadow-lg flex items-center justify-center">
+                  <NavIcon className="w-3 h-3 text-[#9AE62E]" />
+                </div>
+              </div>
+            )}
+          </AdvancedMarker>
+        )}
+      </GoogleMap>
+
+      {!inspectedRide && !focusPoint && gpsStatus === 'acquiring' && (
+        <div className="absolute left-3 top-3 z-10 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/95 dark:bg-[#171C18]/95 border border-black/10 dark:border-white/10 shadow-md text-[11px] font-bold text-[#141912] dark:text-white">
+          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <span>{gpsAcquiringLabel}</span>
+        </div>
+      )}
+
+      {!inspectedRide && (
+        <button
+          type="button"
+          onClick={onRecenter}
+          title={recenterLabel}
+          aria-label={recenterLabel}
+          className={`absolute right-3 bottom-3 z-10 w-11 h-11 rounded-full shadow-md border flex items-center justify-center transition active:scale-95 ${
+            autoFollow
+              ? 'bg-[#9AE62E] text-[#141912] border-[#8CD825]'
+              : 'bg-white dark:bg-[#171C18] text-[#141912] dark:text-white border-black/10 dark:border-white/10'
+          }`}
+        >
+          <Crosshair className="w-5 h-5" />
+        </button>
+      )}
+    </div>
+  );
+});
 
 interface OfflineRouteCanvasProps {
   routePath: { lat: number; lng: number }[];
@@ -172,7 +320,7 @@ interface OfflineRouteCanvasProps {
   recenterLabel: string;
 }
 
-const OfflineRouteCanvas: React.FC<OfflineRouteCanvasProps> = ({
+const OfflineRouteCanvas: React.FC<OfflineRouteCanvasProps> = React.memo(({
   routePath,
   focusPoint,
   liveStartPoint,
@@ -431,7 +579,7 @@ const OfflineRouteCanvas: React.FC<OfflineRouteCanvasProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export const MapPanelView: React.FC<MapPanelViewProps> = ({
   bike,
@@ -456,6 +604,7 @@ export const MapPanelView: React.FC<MapPanelViewProps> = ({
   language,
   numberFormat,
   darkMode,
+  isTabVisible = true,
 }) => {
   const t = translations[language];
   const apiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined) || '';
@@ -464,36 +613,58 @@ export const MapPanelView: React.FC<MapPanelViewProps> = ({
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
 
-  const focusPoint = useMemo(() => {
+  const canRenderGoogleMaps = Boolean(apiKey) && isOnline && !hasQuotaError && !sdkLoadFailed;
+  const showStreetMap = !canRenderGoogleMaps && isOnline;
+  const showOfflineCanvas = !canRenderGoogleMaps && !isOnline;
+
+  // Preserve map instances across transient offline dips so zoom/pan/tiles stay intact
+  const [hasMountedGoogleMap, setHasMountedGoogleMap] = useState(canRenderGoogleMaps);
+  const [hasMountedStreetMap, setHasMountedStreetMap] = useState(showStreetMap);
+
+  useEffect(() => {
+    if (canRenderGoogleMaps) {
+      setHasMountedGoogleMap(true);
+      setHasMountedStreetMap(false);
+    } else if (showStreetMap) {
+      setHasMountedStreetMap(true);
+    }
+  }, [canRenderGoogleMaps, showStreetMap]);
+
+  const rawFocusCoords = useMemo(() => {
     if (inspectedRide) {
       if (isValidCoordinatePair(inspectedRide.endLocation)) {
-        return {
-          lat: inspectedRide.endLocation.lat,
-          lng: inspectedRide.endLocation.lng,
-        };
+        return inspectedRide.endLocation;
       }
       const validPts = inspectedRide.route.filter(isValidCoordinatePair);
       if (validPts.length > 0) {
-        const last = validPts[validPts.length - 1];
-        return { lat: last.lat, lng: last.lng };
+        return validPts[validPts.length - 1];
       }
       return null;
     }
     if (currentPosition && isValidCoordinatePair(currentPosition)) {
-      return { lat: currentPosition.lat, lng: currentPosition.lng };
+      return currentPosition;
     }
     if (activeRide?.lastAcceptedPoint && isValidCoordinatePair(activeRide.lastAcceptedPoint)) {
-      return { lat: activeRide.lastAcceptedPoint.lat, lng: activeRide.lastAcceptedPoint.lng };
+      return activeRide.lastAcceptedPoint;
     }
     return null;
   }, [inspectedRide, currentPosition, activeRide]);
 
-  const routePath = useMemo(() => {
-    const raw = inspectedRide ? inspectedRide.route : activeRide ? activeRide.route : [];
-    return raw.filter(isValidCoordinatePair).map((p) => ({ lat: p.lat, lng: p.lng }));
-  }, [inspectedRide, activeRide]);
+  const focusLat = rawFocusCoords ? rawFocusCoords.lat : null;
+  const focusLng = rawFocusCoords ? rawFocusCoords.lng : null;
 
-  const liveStartPoint = useMemo(() => {
+  const focusPoint = useMemo(() => {
+    if (focusLat === null || focusLng === null) return null;
+    return { lat: focusLat, lng: focusLng };
+  }, [focusLat, focusLng]);
+
+  const rawRoute = inspectedRide ? inspectedRide.route : activeRide ? activeRide.route : null;
+  const routePath = useMemo(() => {
+    if (!rawRoute) return [];
+    return rawRoute.filter(isValidCoordinatePair).map((p) => ({ lat: p.lat, lng: p.lng }));
+  }, [rawRoute]);
+
+  const rawStartCoords = useMemo(() => {
     if (inspectedRide && isValidCoordinatePair(inspectedRide.startLocation)) {
       return inspectedRide.startLocation;
     }
@@ -503,20 +674,34 @@ export const MapPanelView: React.FC<MapPanelViewProps> = ({
     return null;
   }, [inspectedRide, activeRide]);
 
+  const startLat = rawStartCoords ? rawStartCoords.lat : null;
+  const startLng = rawStartCoords ? rawStartCoords.lng : null;
+
+  const liveStartPoint = useMemo(() => {
+    if (startLat === null || startLng === null) return null;
+    return { lat: startLat, lng: startLng };
+  }, [startLat, startLng]);
+
   const liveAvgSpeedKmh = useMemo(() => {
     if (!activeRide || elapsedSeconds <= 0 || activeRide.distanceKm <= 0) return 0;
     return Math.min(180, activeRide.distanceKm / (elapsedSeconds / 3600));
   }, [activeRide, elapsedSeconds]);
 
-  const handleRecenter = () => {
+  const hasCurrentPositionRef = useRef(Boolean(currentPosition));
+  hasCurrentPositionRef.current = Boolean(currentPosition);
+
+  const handleUserDragMap = useCallback(() => {
+    setAutoFollow(false);
+  }, []);
+
+  const handleRecenter = useCallback(() => {
     setAutoFollow(true);
     setRecenterSignal((s) => s + 1);
-    if (!currentPosition) {
+    if (!hasCurrentPositionRef.current) {
       onRequestGpsRetry();
     }
-  };
+  }, [onRequestGpsRetry]);
 
-  const canRenderGoogleMaps = Boolean(apiKey) && isOnline && !hasQuotaError && !sdkLoadFailed;
   const isPermissionsPolicyBlocked = Boolean(
     gpsError && /permissions?\s*policy|feature\s*policy|disallowed\s*by\s*policy/i.test(gpsError)
   );
@@ -711,103 +896,53 @@ export const MapPanelView: React.FC<MapPanelViewProps> = ({
 
       {/* Map Viewport Container (Explicit non-zero height CF2) */}
       <div className="relative rounded-[26px] overflow-hidden bg-white dark:bg-[#171C18] border border-black/[0.05] dark:border-white/[0.08] shadow-[0_4px_18px_rgba(15,23,42,0.06)]">
-        {canRenderGoogleMaps ? (
-          <div className="h-[50vh] min-h-[340px] md:h-[58vh] w-full relative">
-            <GoogleMap
-              mapId="DEMO_MAP_ID"
-              reuseMaps
-              internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
-              colorScheme={darkMode ? ColorScheme.DARK : ColorScheme.LIGHT}
-              defaultCenter={focusPoint || DEFAULT_DHAKA_CENTER}
-              defaultZoom={15}
-              gestureHandling="greedy"
-              streetViewControl={false}
-              mapTypeControl={false}
-              fullscreenControl={false}
-              onDragstart={() => setAutoFollow(false)}
-              className="w-full h-full"
-            >
-              <MapCameraController
-                focusPoint={focusPoint}
-                inspectedRide={inspectedRide}
-                autoFollow={autoFollow}
-                recenterSignal={recenterSignal}
-              />
-
-              {routePath.length >= 2 && (
-                <Polyline
-                  path={routePath}
-                  strokeColor={inspectedRide ? '#2563EB' : '#65A30D'}
-                  strokeOpacity={0.95}
-                  strokeWeight={5}
-                  geodesic
-                />
-              )}
-
-              {liveStartPoint && (
-                <AdvancedMarker
-                  position={{ lat: liveStartPoint.lat, lng: liveStartPoint.lng }}
-                  title={t.startPoint}
-                >
-                  <Pin
-                    background="#16A34A"
-                    borderColor="#14532D"
-                    glyphColor="#FFFFFF"
-                    scale={0.9}
-                  />
-                </AdvancedMarker>
-              )}
-
-              {focusPoint && (
-                <AdvancedMarker
-                  position={focusPoint}
-                  title={inspectedRide ? t.endPoint : t.gpsTrackingActive}
-                >
-                  {inspectedRide ? (
-                    <Pin
-                      background="#DC2626"
-                      borderColor="#7F1D1D"
-                      glyphColor="#FFFFFF"
-                      scale={0.95}
-                    />
-                  ) : (
-                    <div className="relative flex items-center justify-center">
-                      <span className="absolute w-9 h-9 rounded-full bg-[#9AE62E]/45 animate-ping" />
-                      <div className="w-6 h-6 rounded-full bg-[#141912] border-[3px] border-[#9AE62E] shadow-lg flex items-center justify-center">
-                        <NavIcon className="w-3 h-3 text-[#9AE62E]" />
-                      </div>
-                    </div>
-                  )}
-                </AdvancedMarker>
-              )}
-            </GoogleMap>
-
-            {!inspectedRide && !focusPoint && gpsStatus === 'acquiring' && (
-              <div className="absolute left-3 top-3 z-10 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/95 dark:bg-[#171C18]/95 border border-black/10 dark:border-white/10 shadow-md text-[11px] font-bold text-[#141912] dark:text-white">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                <span>{t.gpsAcquiring}</span>
-              </div>
-            )}
-
-            {/* Re-center Floating Button */}
-            {!inspectedRide && (
-              <button
-                type="button"
-                onClick={handleRecenter}
-                title={t.recenterMap}
-                aria-label={t.recenterMap}
-                className={`absolute right-3 bottom-3 z-10 w-11 h-11 rounded-full shadow-md border flex items-center justify-center transition active:scale-95 ${
-                  autoFollow
-                    ? 'bg-[#9AE62E] text-[#141912] border-[#8CD825]'
-                    : 'bg-white dark:bg-[#171C18] text-[#141912] dark:text-white border-black/10 dark:border-white/10'
-                }`}
-              >
-                <Crosshair className="w-5 h-5" />
-              </button>
-            )}
+        {hasMountedGoogleMap && (
+          <div className={canRenderGoogleMaps ? 'block' : 'hidden'}>
+            <GoogleMapCanvas
+              focusPoint={focusPoint}
+              liveStartPoint={liveStartPoint}
+              routePath={routePath}
+              inspectedRide={inspectedRide}
+              darkMode={darkMode}
+              autoFollow={autoFollow}
+              recenterSignal={recenterSignal}
+              isTabVisible={isTabVisible && canRenderGoogleMaps}
+              gpsStatus={gpsStatus}
+              onUserDragMap={handleUserDragMap}
+              onRecenter={handleRecenter}
+              startPointLabel={t.startPoint}
+              endPointLabel={t.endPoint}
+              gpsTrackingActiveLabel={t.gpsTrackingActive}
+              gpsAcquiringLabel={t.gpsAcquiring}
+              recenterLabel={t.recenterMap}
+            />
           </div>
-        ) : (
-          /* Offline / No-Tile Live SVG GPS Radar & Route Visualizer */
+        )}
+
+        {hasMountedStreetMap && (
+          <div className={showStreetMap ? 'block' : 'hidden'}>
+            <OnlineStreetMap
+              focusPoint={focusPoint}
+              liveStartPoint={liveStartPoint}
+              routePath={routePath}
+              inspectedRide={inspectedRide}
+              darkMode={darkMode}
+              autoFollow={autoFollow}
+              recenterSignal={recenterSignal}
+              isTabVisible={isTabVisible && showStreetMap}
+              onUserDragMap={handleUserDragMap}
+              onRecenter={handleRecenter}
+              gpsStatus={gpsStatus}
+              gpsAcquiringLabel={t.gpsAcquiring}
+              recenterLabel={t.recenterMap}
+              sdkLoadFailed={sdkLoadFailed}
+              onReloadMaps={onReloadMaps}
+              language={language}
+            />
+          </div>
+        )}
+
+        {showOfflineCanvas && (
           <OfflineRouteCanvas
             routePath={routePath}
             focusPoint={focusPoint}
