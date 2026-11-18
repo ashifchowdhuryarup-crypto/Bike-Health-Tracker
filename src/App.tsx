@@ -55,6 +55,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { ResetOdometerModal } from './components/ResetOdometerModal';
 
+const MAPS_LIBRARIES = ['marker', 'core'];
+
 const MapsSdkErrorWatcher: React.FC<{
   onSdkError: () => void;
   onSdkReady: () => void;
@@ -90,6 +92,9 @@ export default function App() {
   const [inspectedRide, setInspectedRide] = useState<RideRecord | null>(null);
   const [hasQuotaError, setHasQuotaError] = useState(false);
   const [sdkLoadFailed, setSdkLoadFailed] = useState(false);
+  const [canMountMapsProvider, setCanMountMapsProvider] = useState<boolean>(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine
+  );
   const [mapsProviderKey, setMapsProviderKey] = useState(0);
   const [isAddFuelModalOpen, setIsAddFuelModalOpen] = useState(false);
   const [isMarkServiceModalOpen, setIsMarkServiceModalOpen] = useState(false);
@@ -167,6 +172,7 @@ export default function App() {
 
     const handleQuotaExceeded = () => setHasQuotaError(true);
     const handleNetworkOnline = () => {
+      setCanMountMapsProvider(true);
       setSdkLoadFailed((failed) => {
         if (failed) {
           setMapsProviderKey((k) => k + 1);
@@ -180,6 +186,12 @@ export default function App() {
       window.removeEventListener('gmp-quota-exceeded', handleQuotaExceeded);
       window.removeEventListener('online', handleNetworkOnline);
     };
+  }, []);
+
+  const handleSdkError = useCallback(() => setSdkLoadFailed(true), []);
+  const handleSdkReady = useCallback(() => setSdkLoadFailed(false), []);
+  const handleReloadMaps = useCallback(() => {
+    window.location.reload();
   }, []);
 
   // Sync dark mode class on document
@@ -851,6 +863,7 @@ export default function App() {
                 rideTracker.stopAndSaveRide();
               }}
               onRequestGpsRetry={rideTracker.requestGpsRetry}
+              onReloadMaps={handleReloadMaps}
               onDismissRecoveredBanner={rideTracker.dismissRecoveredBanner}
               onClearLastSavedRide={rideTracker.clearLastSavedRide}
               language={language}
@@ -1049,7 +1062,7 @@ export default function App() {
     </div>
   );
 
-  if (!mapsApiKey) {
+  if (!mapsApiKey || !canMountMapsProvider) {
     return appShell;
   }
 
@@ -1059,12 +1072,12 @@ export default function App() {
       apiKey={mapsApiKey}
       language={language === 'bn' ? 'bn' : 'en'}
       region="BD"
-      libraries={['marker', 'core']}
-      onError={() => setSdkLoadFailed(true)}
+      libraries={MAPS_LIBRARIES}
+      onError={handleSdkError}
     >
       <MapsSdkErrorWatcher
-        onSdkError={() => setSdkLoadFailed(true)}
-        onSdkReady={() => setSdkLoadFailed(false)}
+        onSdkError={handleSdkError}
+        onSdkReady={handleSdkReady}
       />
       {appShell}
     </APIProvider>

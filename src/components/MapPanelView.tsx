@@ -58,6 +58,7 @@ interface MapPanelViewProps {
   onStartRide: () => void;
   onStopAndSaveRide: () => void;
   onRequestGpsRetry: () => void;
+  onReloadMaps: () => void;
   onDismissRecoveredBanner: () => void;
   onClearLastSavedRide: () => void;
   language: Language;
@@ -158,9 +159,11 @@ interface OfflineRouteCanvasProps {
   isInspecting: boolean;
   isRideActive: boolean;
   isOnline: boolean;
+  sdkLoadFailed: boolean;
   gpsStatus: GpsStatus;
   accuracyM?: number;
   onRequestGpsRetry: () => void;
+  onReloadMaps: () => void;
   language: Language;
   numberFormat: NumberFormatType;
   gpsAcquiringLabel: string;
@@ -176,9 +179,11 @@ const OfflineRouteCanvas: React.FC<OfflineRouteCanvasProps> = ({
   isInspecting,
   isRideActive,
   isOnline,
+  sdkLoadFailed,
   gpsStatus,
   accuracyM,
   onRequestGpsRetry,
+  onReloadMaps,
   language,
   numberFormat,
   gpsAcquiringLabel,
@@ -341,33 +346,51 @@ const OfflineRouteCanvas: React.FC<OfflineRouteCanvasProps> = ({
         )}
       </svg>
 
-      {/* Top Overlay Badge: Offline Mode + Live Accuracy */}
-      <div className="absolute left-3 top-3 right-3 flex items-center justify-between gap-2 pointer-events-none">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#171C18]/90 backdrop-blur-sm border border-black/[0.06] dark:border-white/[0.08] shadow-xs text-[11px] font-bold text-[#141912] dark:text-white">
+      {/* Top Overlay Badge: Offline Mode OR Online Map Reload + Live Accuracy */}
+      <div className="absolute left-3 top-3 right-3 flex items-center justify-between gap-2">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#171C18]/90 backdrop-blur-sm border border-black/[0.06] dark:border-white/[0.08] shadow-xs text-[11px] font-bold text-[#141912] dark:text-white pointer-events-none">
           {!isOnline ? (
             <WifiOff className="w-3.5 h-3.5 text-amber-500 shrink-0" />
           ) : (
             <NavIcon className="w-3.5 h-3.5 text-[#65A30D] shrink-0" />
           )}
           <span>
-            {language === 'bn' ? 'অফলাইন GPS ট্র্যাকার' : 'Offline GPS Tracker'}
+            {!isOnline
+              ? language === 'bn'
+                ? 'অফলাইন GPS ট্র্যাকার'
+                : 'Offline GPS Tracker'
+              : language === 'bn'
+              ? 'GPS ট্র্যাকিং চালু'
+              : 'GPS Tracker Active'}
           </span>
         </div>
 
-        {accuracyM !== undefined && Number.isFinite(accuracyM) && (
-          <div
-            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full backdrop-blur-sm text-[11px] font-bold tabular-nums shadow-xs ${
-              isWeakFix
-                ? 'bg-amber-100/95 dark:bg-amber-950/90 text-amber-800 dark:text-amber-300 border border-amber-300/60'
-                : 'bg-white/90 dark:bg-[#171C18]/90 text-[#5C9E00] dark:text-[#A3EC38] border border-black/[0.06] dark:border-white/[0.08]'
-            }`}
-          >
-            <span>±{formatNumber(Math.round(accuracyM), language, numberFormat)} m</span>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5">
+          {isOnline && sdkLoadFailed && (
+            <button
+              type="button"
+              onClick={onReloadMaps}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#9AE62E] hover:bg-[#8CD825] text-[#141912] text-[11px] font-extrabold shadow-xs active:scale-95 transition"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>{language === 'bn' ? 'ম্যাপ লোড করুন' : 'Reload Map'}</span>
+            </button>
+          )}
+          {accuracyM !== undefined && Number.isFinite(accuracyM) && (
+            <div
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full backdrop-blur-sm text-[11px] font-bold tabular-nums shadow-xs pointer-events-none ${
+                isWeakFix
+                  ? 'bg-amber-100/95 dark:bg-amber-950/90 text-amber-800 dark:text-amber-300 border border-amber-300/60'
+                  : 'bg-white/90 dark:bg-[#171C18]/90 text-[#5C9E00] dark:text-[#A3EC38] border border-black/[0.06] dark:border-white/[0.08]'
+              }`}
+            >
+              <span>±{formatNumber(Math.round(accuracyM), language, numberFormat)} m</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Bottom Telemetry Strip inside Offline Canvas */}
+      {/* Bottom Telemetry Strip inside Canvas */}
       <div className="absolute left-3 right-3 bottom-3 flex items-end justify-between gap-2">
         <div className="px-3.5 py-2 rounded-2xl bg-white/90 dark:bg-[#171C18]/90 backdrop-blur-sm border border-black/[0.06] dark:border-white/[0.08] shadow-xs min-w-0">
           <p className="text-[11px] font-bold text-[#141912] dark:text-white tabular-nums truncate">
@@ -378,8 +401,18 @@ const OfflineRouteCanvas: React.FC<OfflineRouteCanvasProps> = ({
           <p className="text-[10px] text-[#6F766C] dark:text-slate-400 mt-0.5 truncate">
             {isRideActive || isInspecting
               ? `${gpsPointsLabel}: ${formatNumber(routePath.length, language, numberFormat)}`
+              : !isOnline
+              ? gpsStatus === 'tracking'
+                ? offlineTrackingLabel
+                : gpsAcquiringLabel
+              : sdkLoadFailed
+              ? language === 'bn'
+                ? 'Google Maps লোড হয়নি — "ম্যাপ লোড করুন" এ ট্যাপ করুন'
+                : 'Google Maps failed to load — tap Reload Map'
               : gpsStatus === 'tracking'
-              ? offlineTrackingLabel
+              ? language === 'bn'
+                ? 'GPS লোকেশন প্রস্তুত'
+                : 'GPS Location Ready'
               : gpsAcquiringLabel}
           </p>
         </div>
@@ -417,6 +450,7 @@ export const MapPanelView: React.FC<MapPanelViewProps> = ({
   onStartRide,
   onStopAndSaveRide,
   onRequestGpsRetry,
+  onReloadMaps,
   onDismissRecoveredBanner,
   onClearLastSavedRide,
   language,
@@ -781,9 +815,11 @@ export const MapPanelView: React.FC<MapPanelViewProps> = ({
             isInspecting={Boolean(inspectedRide)}
             isRideActive={Boolean(activeRide)}
             isOnline={isOnline}
+            sdkLoadFailed={sdkLoadFailed}
             gpsStatus={gpsStatus}
             accuracyM={currentPosition?.accuracyM}
             onRequestGpsRetry={onRequestGpsRetry}
+            onReloadMaps={onReloadMaps}
             language={language}
             numberFormat={numberFormat}
             gpsAcquiringLabel={t.gpsAcquiring}
