@@ -16,13 +16,12 @@
     <meta name="apple-mobile-web-app-title" content="Bike Tracker" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="preload" as="image" href="/pwa-maskable-512x512.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
       (function () {
-        window.__APP_BOOT_START__ = performance.now();
+        var docEl = document.documentElement;
         try {
           var raw = localStorage.getItem('bike_tracker_settings');
           var parsed = raw ? JSON.parse(raw) : null;
@@ -30,12 +29,19 @@
             ? parsed.darkMode
             : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
           if (isDark) {
-            document.documentElement.classList.add('dark');
+            docEl.classList.add('dark');
           }
           var meta = document.getElementById('meta-theme-color');
           if (meta) {
             meta.setAttribute('content', isDark ? '#0D110E' : '#F6F7F4');
           }
+          var isStandalone =
+            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+            window.navigator.standalone === true;
+          if (isStandalone) {
+            docEl.classList.add('pwa-standalone');
+          }
+          window.__PWA_STANDALONE__ = isStandalone;
         } catch (e) {}
       })();
     </script>
@@ -45,14 +51,15 @@
         inset: 0;
         z-index: 9999;
         display: flex;
-        flex-direction: column;
         align-items: center;
         justify-content: center;
         background-color: #f6f7f4;
         color: #141912;
-        font-family: 'Plus Jakarta Sans', 'Hind Siliguri', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        transition: opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1), transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+        font-family: system-ui, -apple-system, 'Plus Jakarta Sans', 'Segoe UI', Roboto, sans-serif;
+        overflow: hidden;
+        transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1), transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
         will-change: opacity, transform;
+        contain: layout style paint;
       }
       html.dark #app-splash {
         background-color: #0d110e;
@@ -60,80 +67,218 @@
       }
       #app-splash.splash-exit {
         opacity: 0;
-        transform: scale(1.03);
+        transform: scale(1.035);
         pointer-events: none;
       }
-      #app-splash .splash-icon-wrap {
-        width: 96px;
-        height: 96px;
-        border-radius: 24px;
-        background: #9ae62e;
-        box-shadow: 0 18px 42px rgba(154, 230, 46, 0.24), 0 4px 14px rgba(0, 0, 0, 0.14);
-        overflow: hidden;
-        animation: splashPop 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+      #app-splash .splash-stage {
+        position: relative;
+        width: 84px;
+        height: 84px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
-      #app-splash .splash-icon-wrap img {
-        width: 100%;
-        height: 100%;
+      #app-splash .splash-aura {
+        position: absolute;
+        width: 148px;
+        height: 148px;
+        border-radius: 9999px;
+        background: radial-gradient(circle, rgba(154, 230, 46, 0.28) 0%, rgba(154, 230, 46, 0.08) 46%, rgba(154, 230, 46, 0) 74%);
+        transform: translate3d(0, -34px, 0) scale(0.75);
+        opacity: 0;
+        pointer-events: none;
+        animation: splashAura 0.72s cubic-bezier(0.22, 1, 0.36, 1) 0.14s forwards;
+      }
+      #app-splash .splash-icon-wrap {
+        position: relative;
+        width: 84px;
+        height: 84px;
+        border-radius: 22px;
+        background: radial-gradient(circle at 50% 42%, #b4f64b 0%, #7fd017 100%);
+        box-shadow: 0 14px 36px rgba(154, 230, 46, 0.24), 0 4px 12px rgba(0, 0, 0, 0.16);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        will-change: transform, opacity;
+        animation: splashIconEnter 0.56s cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+      /* Seamless handoff in installed Android PWA: catches the centered OS icon at opacity:1 and smoothly glides it into the compact 84px icon */
+      html.pwa-standalone #app-splash .splash-icon-wrap {
+        animation: splashIconMorph 0.58s cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+      #app-splash .splash-icon-wrap::after {
+        content: '';
+        position: absolute;
+        inset: -20%;
+        background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.42) 48%, transparent 64%);
+        transform: translate3d(-120%, 0, 0);
+        animation: splashSheen 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.28s 1 both;
+        pointer-events: none;
+      }
+      #app-splash .splash-glyph {
+        width: 50px;
+        height: 50px;
         display: block;
-        object-fit: cover;
+        object-fit: contain;
+        user-select: none;
+        -webkit-user-drag: none;
+      }
+      #app-splash .splash-meta {
+        position: absolute;
+        top: 66px;
+        left: 50%;
+        width: 240px;
+        transform: translate3d(-50%, 0, 0);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
       }
       #app-splash .splash-title {
-        margin-top: 20px;
-        font-size: 24px;
+        font-size: 22px;
         font-weight: 800;
         letter-spacing: -0.02em;
-        line-height: 1.15;
-        animation: splashRise 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+        line-height: 28px;
+        height: 28px;
+        opacity: 0;
+        transform: translate3d(0, 12px, 0);
+        animation: splashTextRise 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.22s forwards;
       }
       #app-splash .splash-sub {
-        margin-top: 6px;
+        margin-top: 4px;
         font-size: 12px;
         font-weight: 600;
-        opacity: 0.62;
-        letter-spacing: 0.01em;
-        animation: splashRise 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+        line-height: 18px;
+        height: 18px;
+        opacity: 0;
+        color: rgba(20, 25, 18, 0.58);
+        letter-spacing: 0.015em;
+        transform: translate3d(0, 10px, 0);
+        animation: splashTextRise 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.3s forwards;
+      }
+      html.dark #app-splash .splash-sub {
+        color: rgba(244, 246, 240, 0.58);
       }
       #app-splash .splash-bar {
-        margin-top: 28px;
-        width: 104px;
-        height: 4px;
+        margin-top: 20px;
+        width: 88px;
+        height: 3px;
         border-radius: 9999px;
-        background: rgba(154, 230, 46, 0.2);
+        background: rgba(154, 230, 46, 0.18);
         overflow: hidden;
+        opacity: 0;
+        animation: splashBarFade 0.36s ease-out 0.34s forwards;
       }
       #app-splash .splash-bar-fill {
-        width: 46%;
+        width: 44%;
         height: 100%;
         border-radius: 9999px;
-        background: #9ae62e;
-        animation: splashSlide 1s ease-in-out infinite;
+        background: linear-gradient(90deg, #82d219, #b4f64b);
+        animation: splashSlide 0.95s cubic-bezier(0.4, 0, 0.2, 1) infinite;
       }
-      @keyframes splashPop {
-        from { opacity: 0; transform: scale(0.88); }
-        to { opacity: 1; transform: scale(1); }
+      @keyframes splashIconEnter {
+        0% {
+          opacity: 0;
+          transform: translate3d(0, -18px, 0) scale(0.84);
+        }
+        68% {
+          opacity: 1;
+          transform: translate3d(0, -36px, 0) scale(1.03);
+        }
+        100% {
+          opacity: 1;
+          transform: translate3d(0, -34px, 0) scale(1);
+        }
       }
-      @keyframes splashRise {
-        from { opacity: 0; transform: translateY(8px); }
-        to { opacity: 1; transform: translateY(0); }
+      @keyframes splashIconMorph {
+        0% {
+          opacity: 1;
+          transform: translate3d(0, 0, 0) scale(1.92);
+          border-radius: 26px;
+        }
+        100% {
+          opacity: 1;
+          transform: translate3d(0, -34px, 0) scale(1);
+          border-radius: 22px;
+        }
+      }
+      @keyframes splashAura {
+        0% {
+          opacity: 0;
+          transform: translate3d(0, -34px, 0) scale(0.72);
+        }
+        100% {
+          opacity: 1;
+          transform: translate3d(0, -34px, 0) scale(1);
+        }
+      }
+      @keyframes splashSheen {
+        0% { transform: translate3d(-120%, 0, 0); }
+        100% { transform: translate3d(135%, 0, 0); }
+      }
+      @keyframes splashTextRise {
+        0% {
+          opacity: 0;
+          transform: translate3d(0, 12px, 0);
+        }
+        100% {
+          opacity: 1;
+          transform: translate3d(0, 0, 0);
+        }
+      }
+      @keyframes splashBarFade {
+        from { opacity: 0; }
+        to { opacity: 1; }
       }
       @keyframes splashSlide {
-        0% { transform: translateX(-110%); }
-        100% { transform: translateX(240%); }
+        0% { transform: translate3d(-115%, 0, 0); }
+        100% { transform: translate3d(245%, 0, 0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #app-splash .splash-icon-wrap,
+        html.pwa-standalone #app-splash .splash-icon-wrap,
+        #app-splash .splash-aura,
+        #app-splash .splash-title,
+        #app-splash .splash-sub,
+        #app-splash .splash-bar,
+        #app-splash .splash-icon-wrap::after {
+          animation: none !important;
+          opacity: 1 !important;
+        }
+        #app-splash .splash-icon-wrap {
+          transform: translate3d(0, -34px, 0) scale(1) !important;
+        }
+        #app-splash .splash-title,
+        #app-splash .splash-sub {
+          transform: none !important;
+        }
       }
     </style>
   </head>
   <body class="bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-[#F4F6F0] antialiased selection:bg-[#9AE62E] selection:text-[#141912]">
     <div id="app-splash" aria-label="Loading Bike Tracker">
-      <div class="splash-icon-wrap">
-        <img src="/pwa-maskable-512x512.png" alt="Bike Tracker Logo" width="96" height="96" decoding="sync" fetchpriority="high" />
+      <div class="splash-stage">
+        <div class="splash-aura" aria-hidden="true"></div>
+        <div class="splash-icon-wrap">
+          <img
+            class="splash-glyph"
+            src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAMAAABlApw1AAAABlBMVEX///8UGRImVACCAAAAAXRSTlMAQObYZgAAA+9JREFUeNrtmuuOqzAMhMn7v/RZ6ahqIb6MHTuANPNvIbHni52Usj0OiqIoiqIoiqIoiqIoiqIoiqIoiqKepvGnuz2s+n8zwRjvJhhf3W1l0f4bCcakux0t2n8Rw9WzDPE0GHPJX1APz+LjCXx/7wMAxtzt2jCHjbvbtWwsMP5u1wuGCEAAAhCAAAQgQDBdhaFx/oaw076TDzP0HbQTAHpOQwz9BtkIgD3/AobGEwCc53wozmYA8FsUuElu2MSfTA4Btke+Q/YDOIfR+c51zEx/B4BJMC2v7f80vpdkblwxn9Xf0rR5XXYAGBtB4LT8S53ZxKCYGcYw6by5zhABWhiQfjiUQhnEGkA9g9K9+oqeCJCKjdHKMDAC8ZAxHNkAlQzDIJg6SxojuxF3SQ8DRjAsAjWoUq9iBr1jhvLJpNZJGf0dt8igTJQiTcN0SD2TmCFNYFRQCiQDzARWLu3vBIHThFIYvwT6Q47Wb4qhvP2fuuqz9BI4+cwrkWeM4QjzsQSgzIYAPPv1BOJAZbKLoDpFEEQA7N2KAqDuNC2wed9HON+KAcQuyz7gNXb4QwTOctnLeDKDdLk3SASIfLnPEiAdjhThct2N6C+GcV7n/J8CeAAeAbKj3L0atX9Y58t0HdkywIaTRuX9fyarObFy+TkRfyn7h/rzTyGKFhxJCq9x0P3/OQcaSMwMrdlCmyfllDno330q3uR/bhfcyNiL4PTo52bOxQYEK/BP2hUHvQRm2LIm6CNwotZ1QBOBG7OwgzsQkIh1eesJYud6YcIigti5vjVlcbBwSr1ZGspZshiyeylB+YZqdj8nqUl8Ct2wrQCCOv91/yMdhkoJLlGr2mkMjGA53TXmqCGQ3JoEVf6LnrS8Y6eMwOjKyrKat1aSeeu06B+8m8+lGl0j8CYrXVvof/FscOcWlcBc5gUCYGZJCRyLaQJonkhQ6j/fmXsAkF2aJMBmLQJAp8xSZ8aGRVOBp+QCQHRcLBV6yqdKsAEA/5RKAMDQUg9V+88DhEcGMgX81wFo1xIAun8vxwKAfzG4pop/LPGtAI7/xwNY7f8GAHP7dgIUbWLn+GncxP5IYFrk+FwGaPggy/hfeEyPjnNnXf0nqnwrwOw/XuUQQPRXXs4kyX/Psxw86zLKnjT1P7ZKqQIkf6Y2IAWt5fw3AgSTJAuQea2CAQgBkHMrDhB/sQUB5HIsvbGM3I/Z95Os+A+/3AUI9CjuL1OWCMKJa3IUJHFat8C/EaskiVR/uydqctQlifZ0fY7Of1PW+G/P0W3fRGiMXulfS9IXvti9jNAWv8P9NUljDoqiKIqiKIqiKIqiKIqiKIqiKIqiKGrSPwSwEwxcCE+6AAAAAElFTkSuQmCC"
+            alt="Bike Tracker Logo"
+            width="50"
+            height="50"
+            decoding="sync"
+          />
+        </div>
+        <div class="splash-meta">
+          <div class="splash-title">Bike Tracker</div>
+          <div class="splash-sub">GPS Ride &amp; Health Tracker</div>
+          <div class="splash-bar"><div class="splash-bar-fill"></div></div>
+        </div>
       </div>
-      <div class="splash-title">Bike Tracker</div>
-      <div class="splash-sub">GPS Ride &amp; Health Tracker</div>
-      <div class="splash-bar"><div class="splash-bar-fill"></div></div>
     </div>
+    <script>window.__SPLASH_PAINT_START__ = performance.now();</script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

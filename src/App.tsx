@@ -183,9 +183,17 @@ export default function App() {
     let removeTimer: number | undefined;
 
     if (splash) {
-      const bootStart = (window as Window & { __APP_BOOT_START__?: number }).__APP_BOOT_START__ || 0;
-      const elapsed = bootStart > 0 ? performance.now() - bootStart : 0;
-      const remaining = Math.max(0, 380 - elapsed);
+      const win = window as Window & {
+        __SPLASH_PAINT_START__?: number;
+        __PWA_STANDALONE__?: boolean;
+      };
+      const prefersReducedMotion =
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const minSplashMs = prefersReducedMotion ? 180 : win.__PWA_STANDALONE__ ? 1050 : 950;
+      const paintStart = win.__SPLASH_PAINT_START__ || performance.now();
+      const elapsed = Math.max(0, performance.now() - paintStart);
+      const remaining = Math.max(0, minSplashMs - elapsed);
 
       raf1 = requestAnimationFrame(() => {
         raf2 = requestAnimationFrame(() => {
@@ -193,7 +201,7 @@ export default function App() {
             splash.classList.add('splash-exit');
             removeTimer = window.setTimeout(() => {
               splash.remove();
-            }, 360);
+            }, 460);
           }, remaining);
         });
       });
