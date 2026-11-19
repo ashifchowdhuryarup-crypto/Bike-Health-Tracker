@@ -11,13 +11,20 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.png', 'apple-touch-icon.png', 'logo.png'],
+        includeAssets: [
+          'favicon.png',
+          'apple-touch-icon.png',
+          'logo.png',
+          'pwa-192x192.png',
+          'pwa-512x512.png',
+          'pwa-maskable-512x512.png',
+        ],
         manifest: {
           id: '/',
-          name: 'Bike Tracker - বাইক ট্র্যাকার',
-          short_name: 'BikeTracker',
-          description: 'মোটরসাইকেলের ফুয়েল খরচ, মাইলেজ ও সার্ভিস রিমাইন্ডার ট্র্যাকিং অ্যাপ',
-          theme_color: '#9AE62E',
+          name: 'Bike Tracker',
+          short_name: 'Bike Tracker',
+          description: 'মোটরসাইকেলের GPS রাইড, ফুয়েল খরচ, মাইলেজ ও সার্ভিস রিমাইন্ডার ট্র্যাকিং অ্যাপ',
+          theme_color: '#0D110E',
           background_color: '#0D110E',
           display: 'standalone',
           orientation: 'portrait',
@@ -37,7 +44,7 @@ export default defineConfig(() => {
               purpose: 'any',
             },
             {
-              src: '/pwa-512x512.png',
+              src: '/pwa-maskable-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
@@ -51,9 +58,40 @@ export default defineConfig(() => {
           cleanupOutdatedCaches: true,
           clientsClaim: true,
           skipWaiting: true,
+          runtimeCaching: [
+            {
+              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'google-fonts-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            {
+              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'gstatic-fonts-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+          ],
         },
         devOptions: {
-          enabled: false,
+          enabled: true,
+          type: 'module',
         },
       }),
     ],

@@ -1,4 +1,5 @@
-import {createRoot} from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
+import { registerSW } from 'virtual:pwa-register';
 import App from './App.tsx';
 import './index.css';
 
@@ -17,12 +18,8 @@ console.error = (...args: unknown[]) => {
 
 createRoot(document.getElementById('root')!).render(<App />);
 
-// Register Service Worker in production builds for PWA installability & offline support
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
-      console.log('ServiceWorker registration failed: ', err);
-    });
-  });
+// Register Workbox Service Worker seamlessly for PWA installability, icon updates & offline caching
+if (import.meta.env.PROD) {
+  registerSW({ immediate: true });
 }
 

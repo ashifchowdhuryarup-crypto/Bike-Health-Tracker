@@ -99,10 +99,14 @@ export function loadSettings(): AppSettings {
   } catch (e) {
     console.error('Error loading settings', e);
   }
+  const prefersDark =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches;
   return {
     language: 'bn', // Default Bangla as requested
     numberFormat: 'bn',
-    darkMode: false,
+    darkMode: prefersDark,
     fuelPrices: DEFAULT_FUEL_PRICES,
   };
 }

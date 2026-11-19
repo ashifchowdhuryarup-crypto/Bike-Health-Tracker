@@ -72,20 +72,83 @@ const MapsSdkErrorWatcher: React.FC<{
   return null;
 };
 
+function loadInitialAppState() {
+  const settings = loadSettings();
+  const initial = initLocalStorageIfEmpty();
+  let loadedBikes = initial.bikes;
+  let loadedItems = initial.serviceItems;
+  let bikesHealed = false;
+  let itemsHealed = false;
+  const todayStr = getLocalDateString();
+
+  // Auto-heal any uninitialized 0-km default service records on existing bikes above 500 km
+  loadedBikes = loadedBikes.map((b) => {
+    if (b.currentOdometer > 500) {
+      const res = autoSyncServicesForOdometerChange(
+        loadedItems,
+        b,
+        b.initialOdometer === 0 ? 0 : b.currentOdometer,
+        b.currentOdometer,
+        initial.serviceLogs,
+        todayStr,
+        false
+      );
+      if (res.changed) {
+        loadedItems = res.updatedItems;
+        itemsHealed = true;
+      }
+      if (res.updatedInitialOdo !== b.initialOdometer) {
+        bikesHealed = true;
+        return { ...b, initialOdometer: res.updatedInitialOdo };
+      }
+    }
+    return b;
+  });
+
+  if (bikesHealed) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.BIKES, JSON.stringify(loadedBikes));
+    } catch {
+      // Ignore storage quota errors during initial boot
+    }
+  }
+  if (itemsHealed) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SERVICE_ITEMS, JSON.stringify(loadedItems));
+    } catch {
+      // Ignore storage quota errors during initial boot
+    }
+  }
+
+  return {
+    settings,
+    bikes: loadedBikes,
+    activeBikeId: initial.activeBikeId,
+    fuelEntries: initial.fuelEntries,
+    serviceItems: loadedItems,
+    serviceLogs: initial.serviceLogs,
+    rideHistory: initial.rideHistory,
+  };
+}
+
 export default function App() {
-  // 1. Initial State from Storage
-  const [bikes, setBikes] = useState<Bike[]>([]);
-  const [activeBikeId, setActiveBikeId] = useState<string | null>(null);
-  const [fuelEntries, setFuelEntries] = useState<FuelEntry[]>([]);
-  const [serviceItems, setServiceItems] = useState<ServiceItem[]>([]);
-  const [serviceLogs, setServiceLogs] = useState<ServiceLog[]>([]);
-  const [rideHistory, setRideHistory] = useState<RideRecord[]>([]);
+  // 1. Synchronous Initial State from Storage (zero blank/empty first frame)
+  const [bootState] = useState(() => loadInitialAppState());
+
+  const [bikes, setBikes] = useState<Bike[]>(bootState.bikes);
+  const [activeBikeId, setActiveBikeId] = useState<string | null>(bootState.activeBikeId);
+  const [fuelEntries, setFuelEntries] = useState<FuelEntry[]>(bootState.fuelEntries);
+  const [serviceItems, setServiceItems] = useState<ServiceItem[]>(bootState.serviceItems);
+  const [serviceLogs, setServiceLogs] = useState<ServiceLog[]>(bootState.serviceLogs);
+  const [rideHistory, setRideHistory] = useState<RideRecord[]>(bootState.rideHistory);
 
   // 2. Settings
-  const [language, setLanguage] = useState<Language>('bn');
-  const [numberFormat, setNumberFormat] = useState<NumberFormatType>('bn');
-  const [darkMode, setDarkMode] = useState<boolean>(false);
-  const [fuelPrices, setFuelPrices] = useState<FuelPriceSettings>(DEFAULT_FUEL_PRICES);
+  const [language, setLanguage] = useState<Language>(bootState.settings.language);
+  const [numberFormat, setNumberFormat] = useState<NumberFormatType>(bootState.settings.numberFormat);
+  const [darkMode, setDarkMode] = useState<boolean>(bootState.settings.darkMode);
+  const [fuelPrices, setFuelPrices] = useState<FuelPriceSettings>(
+    bootState.settings.fuelPrices || DEFAULT_FUEL_PRICES
+  );
 
   // 3. Navigation, Maps Quota & Modals
   const [currentTab, setCurrentTab] = useState<TabType>('home');
@@ -103,71 +166,37 @@ export default function App() {
   const [editingServiceItem, setEditingServiceItem] = useState<ServiceItem | null>(null);
   const [isResetOdoModalOpen, setIsResetOdoModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(bootState.bikes.length === 0);
   const [isAddBikeModalOpen, setIsAddBikeModalOpen] = useState(false);
 
-  const bikesRef = useRef<Bike[]>([]);
+  const bikesRef = useRef<Bike[]>(bootState.bikes);
   useEffect(() => {
     bikesRef.current = bikes;
   }, [bikes]);
 
-  // 4. Mount & Load Data
+  // 4. Mount: Smoothly dismiss branded #app-splash & attach global listeners
   useEffect(() => {
-    const settings = loadSettings();
-    setLanguage(settings.language);
-    setNumberFormat(settings.numberFormat);
-    setDarkMode(settings.darkMode);
-    if (settings.fuelPrices) {
-      setFuelPrices(settings.fuelPrices);
-    }
+    const splash = document.getElementById('app-splash');
+    let raf1 = 0;
+    let raf2 = 0;
+    let dismissTimer: number | undefined;
+    let removeTimer: number | undefined;
 
-    const initial = initLocalStorageIfEmpty();
-    let loadedBikes = initial.bikes;
-    let loadedItems = initial.serviceItems;
-    let bikesHealed = false;
-    let itemsHealed = false;
-    const todayStr = getLocalDateString();
+    if (splash) {
+      const bootStart = (window as Window & { __APP_BOOT_START__?: number }).__APP_BOOT_START__ || 0;
+      const elapsed = bootStart > 0 ? performance.now() - bootStart : 0;
+      const remaining = Math.max(0, 380 - elapsed);
 
-    // Auto-heal any uninitialized 0-km default service records on existing bikes above 500 km
-    loadedBikes = loadedBikes.map((b) => {
-      if (b.currentOdometer > 500) {
-        const res = autoSyncServicesForOdometerChange(
-          loadedItems,
-          b,
-          b.initialOdometer === 0 ? 0 : b.currentOdometer,
-          b.currentOdometer,
-          initial.serviceLogs,
-          todayStr,
-          false
-        );
-        if (res.changed) {
-          loadedItems = res.updatedItems;
-          itemsHealed = true;
-        }
-        if (res.updatedInitialOdo !== b.initialOdometer) {
-          bikesHealed = true;
-          return { ...b, initialOdometer: res.updatedInitialOdo };
-        }
-      }
-      return b;
-    });
-
-    if (bikesHealed) {
-      localStorage.setItem(STORAGE_KEYS.BIKES, JSON.stringify(loadedBikes));
-    }
-    if (itemsHealed) {
-      localStorage.setItem(STORAGE_KEYS.SERVICE_ITEMS, JSON.stringify(loadedItems));
-    }
-
-    setBikes(loadedBikes);
-    setActiveBikeId(initial.activeBikeId);
-    setFuelEntries(initial.fuelEntries);
-    setServiceItems(loadedItems);
-    setServiceLogs(initial.serviceLogs);
-    setRideHistory(initial.rideHistory);
-
-    if (loadedBikes.length === 0) {
-      setIsOnboardingOpen(true);
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          dismissTimer = window.setTimeout(() => {
+            splash.classList.add('splash-exit');
+            removeTimer = window.setTimeout(() => {
+              splash.remove();
+            }, 360);
+          }, remaining);
+        });
+      });
     }
 
     const handleQuotaExceeded = () => setHasQuotaError(true);
@@ -177,6 +206,10 @@ export default function App() {
     window.addEventListener('gmp-quota-exceeded', handleQuotaExceeded);
     window.addEventListener('online', handleNetworkOnline);
     return () => {
+      if (raf1) cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+      if (dismissTimer) window.clearTimeout(dismissTimer);
+      if (removeTimer) window.clearTimeout(removeTimer);
       window.removeEventListener('gmp-quota-exceeded', handleQuotaExceeded);
       window.removeEventListener('online', handleNetworkOnline);
     };
@@ -189,12 +222,16 @@ export default function App() {
     window.location.reload();
   }, []);
 
-  // Sync dark mode class on document
+  // Sync dark mode class and status-bar theme-color meta tag
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
+    }
+    const themeMeta = document.getElementById('meta-theme-color');
+    if (themeMeta) {
+      themeMeta.setAttribute('content', darkMode ? '#0D110E' : '#F6F7F4');
     }
   }, [darkMode]);
 

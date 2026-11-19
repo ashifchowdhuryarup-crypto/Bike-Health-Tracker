@@ -9,19 +9,129 @@
     <meta property="og:description" content="Mobile-first fuel mileage and service reminder tracker for motorcycle owners in Bangladesh with Bangla & English support." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="theme-color" content="#9AE62E" />
+    <meta name="theme-color" content="#0D110E" id="meta-theme-color" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Bike Tracker" />
-    <link rel="icon" type="image/png" href="/logo.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="preload" as="image" href="/pwa-maskable-512x512.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      (function () {
+        window.__APP_BOOT_START__ = performance.now();
+        try {
+          var raw = localStorage.getItem('bike_tracker_settings');
+          var parsed = raw ? JSON.parse(raw) : null;
+          var isDark = parsed && typeof parsed.darkMode === 'boolean'
+            ? parsed.darkMode
+            : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+          }
+          var meta = document.getElementById('meta-theme-color');
+          if (meta) {
+            meta.setAttribute('content', isDark ? '#0D110E' : '#F6F7F4');
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <style>
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #f6f7f4;
+        color: #141912;
+        font-family: 'Plus Jakarta Sans', 'Hind Siliguri', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        transition: opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1), transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+        will-change: opacity, transform;
+      }
+      html.dark #app-splash {
+        background-color: #0d110e;
+        color: #f4f6f0;
+      }
+      #app-splash.splash-exit {
+        opacity: 0;
+        transform: scale(1.03);
+        pointer-events: none;
+      }
+      #app-splash .splash-icon-wrap {
+        width: 96px;
+        height: 96px;
+        border-radius: 24px;
+        background: #9ae62e;
+        box-shadow: 0 18px 42px rgba(154, 230, 46, 0.24), 0 4px 14px rgba(0, 0, 0, 0.14);
+        overflow: hidden;
+        animation: splashPop 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+      #app-splash .splash-icon-wrap img {
+        width: 100%;
+        height: 100%;
+        display: block;
+        object-fit: cover;
+      }
+      #app-splash .splash-title {
+        margin-top: 20px;
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        animation: splashRise 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+      }
+      #app-splash .splash-sub {
+        margin-top: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        opacity: 0.62;
+        letter-spacing: 0.01em;
+        animation: splashRise 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+      }
+      #app-splash .splash-bar {
+        margin-top: 28px;
+        width: 104px;
+        height: 4px;
+        border-radius: 9999px;
+        background: rgba(154, 230, 46, 0.2);
+        overflow: hidden;
+      }
+      #app-splash .splash-bar-fill {
+        width: 46%;
+        height: 100%;
+        border-radius: 9999px;
+        background: #9ae62e;
+        animation: splashSlide 1s ease-in-out infinite;
+      }
+      @keyframes splashPop {
+        from { opacity: 0; transform: scale(0.88); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      @keyframes splashRise {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes splashSlide {
+        0% { transform: translateX(-110%); }
+        100% { transform: translateX(240%); }
+      }
+    </style>
   </head>
-  <body class="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased selection:bg-emerald-500 selection:text-white">
+  <body class="bg-[#F6F7F4] dark:bg-[#0D110E] text-[#141912] dark:text-[#F4F6F0] antialiased selection:bg-[#9AE62E] selection:text-[#141912]">
+    <div id="app-splash" aria-label="Loading Bike Tracker">
+      <div class="splash-icon-wrap">
+        <img src="/pwa-maskable-512x512.png" alt="Bike Tracker Logo" width="96" height="96" decoding="sync" fetchpriority="high" />
+      </div>
+      <div class="splash-title">Bike Tracker</div>
+      <div class="splash-sub">GPS Ride &amp; Health Tracker</div>
+      <div class="splash-bar"><div class="splash-bar-fill"></div></div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
